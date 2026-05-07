@@ -16,9 +16,19 @@ RAY_CMD=("${VENV_DIR}/bin/python" -m ray.scripts.scripts)
 RAY_PORT="${RAY_PORT:-6379}"
 DASHBOARD_PORT="${DASHBOARD_PORT:-8265}"
 NUM_GPUS="${NUM_GPUS:-1}"
+RESTART_RAY="${RESTART_RAY:-0}"
 
-echo "[head] stopping old Ray runtime"
-"${RAY_CMD[@]}" stop || true
+if [[ "${RESTART_RAY}" == "1" ]]; then
+  echo "[head] RESTART_RAY=1 -> stopping old Ray runtime"
+  "${RAY_CMD[@]}" stop || true
+else
+  if "${RAY_CMD[@]}" status >/dev/null 2>&1; then
+    echo "[head] Ray cluster already running. Skipping restart."
+    echo "[head] Use RESTART_RAY=1 bash scripts/start_head.sh to force restart."
+    echo "[head] dashboard: http://127.0.0.1:${DASHBOARD_PORT}"
+    exit 0
+  fi
+fi
 
 echo "[head] starting Ray head on port ${RAY_PORT}"
 "${RAY_CMD[@]}" start \

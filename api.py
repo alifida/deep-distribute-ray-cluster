@@ -131,6 +131,22 @@ def cluster_nodes() -> Dict:
         return {"status": "error", "error": str(exc), "nodes": []}
 
 
+@app.post("/cluster/reconnect")
+def cluster_reconnect() -> Dict:
+    try:
+        import ray
+
+        if ray.is_initialized():
+            try:
+                ray.shutdown()
+            except Exception:
+                pass
+        ray.init(address="auto", ignore_reinit_error=True)
+        return {"status": "ok", "resources": ray.available_resources()}
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
+
+
 @app.get("/", response_class=HTMLResponse)
 def ui() -> str:
     return """<!doctype html>
@@ -194,11 +210,19 @@ def ui() -> str:
     pre { background: #0b1020; color: #d8e1ff; padding: 12px; border-radius: 8px; overflow: auto; max-height: 340px; }
     table { width: 100%; border-collapse: collapse; }
     th, td { border-bottom: 1px solid #eee; text-align: left; padding: 8px; font-size: 14px; }
+    .conn-banner { border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 13px; }
+    .conn-ok { background: #ecfdf5; color: #166534; border: 1px solid #86efac; }
+    .conn-warn { background: #fff7ed; color: #9a3412; border: 1px solid #fdba74; }
+    .conn-bad { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
   </style>
 </head>
 <body>
   <h1>Ray Async Parameter-Server Dashboard</h1>
   <div class="muted">Production-focused dashboard for launching, monitoring, and analyzing experiments.</div>
+  <div id="conn_banner" class="conn-banner conn-ok">Backend status: checking...</div>
+  <div style="margin-bottom:12px;">
+    <button onclick="reconnectRay()">Reconnect Ray</button>
+  </div>
 
   <div class="card">
     <h3>Job Overview</h3>
@@ -287,6 +311,48 @@ def ui() -> str:
   </div>
 
   <script>
+    function setBanner(state, text) {
+      const el = document.getElementById("conn_banner");
+      el.className = "conn-banner " + (state === "ok" ? "conn-ok" : state === "warn" ? "conn-warn" : "conn-bad");
+      el.textContent = text;
+    }
+
+    async function safeFetch(url, options = {}) {
+      try {
+        const r = await fetch(url, options);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        setBanner("ok", "Backend status: connected");
+        return await r.json();
+      } catch (e) {
+        setBanner("bad", `Backend status: disconnected (${e.message}). Check start_ui.sh and Ray head.`);
+        throw e;
+      }
+    }
+
+    async function probeConnection() {
+      try {
+        const h = await safeFetch("/health");
+        if (h.status === "ok") setBanner("ok", "Backend status: connected");
+      } catch (_) {
+        // banner already updated in safeFetch
+      }
+    }
+
+    async function reconnectRay() {
+      try {
+        const r = await safeFetch("/cluster/reconnect", {method: "POST"});
+        if (r.status === "ok") {
+          setBanner("ok", "Backend status: connected (Ray reconnected)");
+          await refreshResources();
+          await refreshNodes();
+        } else {
+          setBanner("warn", "Reconnect attempted but Ray is still unavailable.");
+        }
+      } catch (e) {
+        setBanner("bad", "Reconnect failed: " + e.message);
+      }
+    }
+
     async function startExperiment() {
       const payload = {
         dataset_root: document.getElementById("dataset_root").value,
@@ -314,14 +380,17 @@ def ui() -> str:
         msg.textContent = "Invalid split: train_split + val_split must be < 1.0";
         return;
       }
-      const r = await fetch("/experiments", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(payload)
-      });
-      const j = await r.json();
-      msg.textContent = "Job queued: " + j.job_id;
-      await refreshJobs();
+      try {
+        const j = await safeFetch("/experiments", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(payload)
+        });
+        msg.textContent = "Job queued: " + j.job_id;
+        await refreshJobs();
+      } catch (e) {
+        msg.textContent = "Failed to start job: " + e.message;
+      }
     }
 
     let metricsChart = null;
@@ -344,8 +413,12 @@ def ui() -> str:
     }
 
     async function refreshJobs() {
-      const r = await fetch("/experiments");
-      const jobs = await r.json();
+      let jobs = {};
+      try {
+        jobs = await safeFetch("/experiments");
+      } catch (_) {
+        return;
+      }
       updateKpis(jobs);
       const body = document.getElementById("jobs_body");
       body.innerHTML = "";
@@ -364,14 +437,26 @@ def ui() -> str:
     }
 
     async function refreshResources() {
-      const r = await fetch("/cluster/resources");
-      const data = await r.json();
+      let data = {};
+      try {
+        data = await safeFetch("/cluster/resources");
+      } catch (_) {
+        document.getElementById("cluster_resources").textContent = "Unable to reach backend.";
+        return;
+      }
+      if (data.status !== "ok") {
+        setBanner("warn", "Backend up, but Ray cluster is not connected.");
+      }
       document.getElementById("cluster_resources").textContent = JSON.stringify(data, null, 2);
     }
 
     async function refreshNodes() {
-      const r = await fetch("/cluster/nodes");
-      const data = await r.json();
+      let data = {};
+      try {
+        data = await safeFetch("/cluster/nodes");
+      } catch (_) {
+        return;
+      }
       const body = document.getElementById("nodes_body");
       body.innerHTML = "";
       const nodes = data.nodes || [];
@@ -395,8 +480,12 @@ def ui() -> str:
     }
 
     async function viewJob(jobId) {
-      const r = await fetch("/experiments/" + jobId);
-      const data = await r.json();
+      let data = {};
+      try {
+        data = await safeFetch("/experiments/" + jobId);
+      } catch (_) {
+        return;
+      }
       document.getElementById("job_details").textContent = JSON.stringify({job_id: jobId, ...data}, null, 2);
       renderSummary(data);
       renderCharts(data);
@@ -466,9 +555,11 @@ def ui() -> str:
       });
     }
 
+    probeConnection();
     refreshJobs();
     refreshResources();
     refreshNodes();
+    setInterval(probeConnection, 5000);
     setInterval(refreshJobs, 5000);
     setInterval(refreshResources, 5000);
     setInterval(refreshNodes, 5000);

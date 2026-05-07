@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -60,21 +61,56 @@ def run_experiment(config: ExperimentConfig) -> Dict:
         effective_gpu_per_worker = 0.0
         gpu_fallback_applied = True
 
-    ps_opts = {"num_gpus": 1 if config.use_gpu_on_ps else 0}
-    ps = ParameterServer.options(**ps_opts).remote(config)
-    dataset_server = None
-    if str(config.data_mode).lower() == "stream_from_head":
-        dataset_server = DatasetServer.remote(data.train_partitions, config.image_size)
+    runtime_env = {"working_dir": os.getcwd()}
 
-    workers = []
-    for idx in range(config.num_workers):
-        opts = {"num_gpus": float(effective_gpu_per_worker)}
-        actor = Worker.options(**opts).remote(f"worker_{idx}", idx, data.train_partitions[idx], config)
-        workers.append(actor)
+    def _run_attempt(worker_gpu: float, data_mode: str):
+        ps_opts = {"num_gpus": 1 if config.use_gpu_on_ps and worker_gpu > 0 else 0, "runtime_env": runtime_env}
+        ps = ParameterServer.options(**ps_opts).remote(config)
+        dataset_server = None
+        if str(data_mode).lower() == "stream_from_head":
+            dataset_server = DatasetServer.options(runtime_env=runtime_env).remote(data.train_partitions, config.image_size)
 
-    worker_results = ray.get([w.train.remote(ps, dataset_server) for w in workers])
-    global_state = ray.get(ps.get_global_weights.remote())
-    comm_metrics = ray.get(ps.get_communication_metrics.remote())
+        workers = []
+        for idx in range(config.num_workers):
+            opts = {"num_gpus": float(worker_gpu), "runtime_env": runtime_env}
+            actor = Worker.options(**opts).remote(f"worker_{idx}", idx, data.train_partitions[idx], config)
+            workers.append(actor)
+
+        worker_results_local = ray.get([w.train.remote(ps, dataset_server) for w in workers])
+        global_state_local = ray.get(ps.get_global_weights.remote())
+        comm_metrics_local = ray.get(ps.get_communication_metrics.remote())
+        return worker_results_local, global_state_local, comm_metrics_local
+
+    attempts: list[dict] = []
+    worker_results = None
+    global_state = None
+    comm_metrics = None
+    final_data_mode = str(config.data_mode)
+    final_gpu_per_worker = float(effective_gpu_per_worker)
+    fallback_reason = None
+
+    try:
+        worker_results, global_state, comm_metrics = _run_attempt(final_gpu_per_worker, final_data_mode)
+        attempts.append({"worker_gpu": final_gpu_per_worker, "data_mode": final_data_mode, "status": "ok"})
+    except Exception as first_exc:
+        attempts.append({"worker_gpu": final_gpu_per_worker, "data_mode": final_data_mode, "status": "failed", "error": str(first_exc)})
+        if not config.allow_gpu_fallback:
+            raise
+        fallback_reason = str(first_exc)
+
+        # First rescue: force CPU, keep same data mode.
+        final_gpu_per_worker = 0.0
+        try:
+            worker_results, global_state, comm_metrics = _run_attempt(final_gpu_per_worker, final_data_mode)
+            attempts.append({"worker_gpu": final_gpu_per_worker, "data_mode": final_data_mode, "status": "ok"})
+            gpu_fallback_applied = True
+        except Exception as second_exc:
+            attempts.append({"worker_gpu": final_gpu_per_worker, "data_mode": final_data_mode, "status": "failed", "error": str(second_exc)})
+            # Second rescue: force CPU + shared_path for maximum compatibility.
+            final_data_mode = "shared_path"
+            worker_results, global_state, comm_metrics = _run_attempt(final_gpu_per_worker, final_data_mode)
+            attempts.append({"worker_gpu": final_gpu_per_worker, "data_mode": final_data_mode, "status": "ok"})
+            gpu_fallback_applied = True
 
     model = build_model(config.model_name, (config.image_size[0], config.image_size[1], 3))
     model.set_weights(lists_to_weights(global_state["weights"], global_state["shapes"]))
@@ -86,9 +122,11 @@ def run_experiment(config: ExperimentConfig) -> Dict:
         "config": config.__dict__,
         "ray_resources": ray.available_resources(),
         "execution": {
-            "effective_num_gpus_per_worker": effective_gpu_per_worker,
+            "effective_num_gpus_per_worker": final_gpu_per_worker,
             "gpu_fallback_applied": gpu_fallback_applied,
-            "data_mode": config.data_mode,
+            "data_mode": final_data_mode,
+            "fallback_reason": fallback_reason,
+            "attempts": attempts,
         },
         "workers": worker_results,
         "validation_metrics": val_metrics,
