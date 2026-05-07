@@ -17,6 +17,13 @@ RAY_PORT="${RAY_PORT:-6379}"
 DASHBOARD_PORT="${DASHBOARD_PORT:-8265}"
 NUM_GPUS="${NUM_GPUS:-1}"
 RESTART_RAY="${RESTART_RAY:-0}"
+NODE_MANAGER_PORT="${NODE_MANAGER_PORT:-10001}"
+OBJECT_MANAGER_PORT="${OBJECT_MANAGER_PORT:-10002}"
+RAY_CLIENT_SERVER_PORT="${RAY_CLIENT_SERVER_PORT:-10003}"
+DASHBOARD_AGENT_LISTEN_PORT="${DASHBOARD_AGENT_LISTEN_PORT:-10004}"
+METRICS_EXPORT_PORT="${METRICS_EXPORT_PORT:-10005}"
+MIN_WORKER_PORT="${MIN_WORKER_PORT:-11000}"
+MAX_WORKER_PORT="${MAX_WORKER_PORT:-11999}"
 
 if [[ "${RESTART_RAY}" == "1" ]]; then
   echo "[head] RESTART_RAY=1 -> stopping old Ray runtime"
@@ -36,7 +43,22 @@ echo "[head] starting Ray head on port ${RAY_PORT}"
   --port="${RAY_PORT}" \
   --dashboard-host=0.0.0.0 \
   --dashboard-port="${DASHBOARD_PORT}" \
+  --node-manager-port="${NODE_MANAGER_PORT}" \
+  --object-manager-port="${OBJECT_MANAGER_PORT}" \
+  --ray-client-server-port="${RAY_CLIENT_SERVER_PORT}" \
+  --dashboard-agent-listen-port="${DASHBOARD_AGENT_LISTEN_PORT}" \
+  --metrics-export-port="${METRICS_EXPORT_PORT}" \
+  --min-worker-port="${MIN_WORKER_PORT}" \
+  --max-worker-port="${MAX_WORKER_PORT}" \
   --num-gpus="${NUM_GPUS}"
 
 echo "[head] started"
 echo "[head] dashboard: http://127.0.0.1:${DASHBOARD_PORT}"
+echo "[head] fixed ports:"
+echo "  gcs: ${RAY_PORT}"
+echo "  node_manager: ${NODE_MANAGER_PORT}"
+echo "  object_manager: ${OBJECT_MANAGER_PORT}"
+echo "  ray_client: ${RAY_CLIENT_SERVER_PORT}"
+echo "  dashboard_agent: ${DASHBOARD_AGENT_LISTEN_PORT}"
+echo "  metrics_export: ${METRICS_EXPORT_PORT}"
+echo "  workers: ${MIN_WORKER_PORT}-${MAX_WORKER_PORT}"

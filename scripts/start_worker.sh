@@ -22,6 +22,12 @@ fi
 RAY_CMD=("${VENV_DIR}/bin/python" -m ray.scripts.scripts)
 
 NUM_GPUS="${NUM_GPUS:-1}"
+NODE_MANAGER_PORT="${NODE_MANAGER_PORT:-10011}"
+OBJECT_MANAGER_PORT="${OBJECT_MANAGER_PORT:-10012}"
+DASHBOARD_AGENT_LISTEN_PORT="${DASHBOARD_AGENT_LISTEN_PORT:-10014}"
+METRICS_EXPORT_PORT="${METRICS_EXPORT_PORT:-10015}"
+MIN_WORKER_PORT="${MIN_WORKER_PORT:-12000}"
+MAX_WORKER_PORT="${MAX_WORKER_PORT:-12999}"
 
 echo "[worker] stopping old Ray runtime"
 "${RAY_CMD[@]}" stop || true
@@ -29,6 +35,18 @@ echo "[worker] stopping old Ray runtime"
 echo "[worker] connecting to ${HEAD_IP}:${HEAD_PORT}"
 "${RAY_CMD[@]}" start \
   --address="${HEAD_IP}:${HEAD_PORT}" \
+  --node-manager-port="${NODE_MANAGER_PORT}" \
+  --object-manager-port="${OBJECT_MANAGER_PORT}" \
+  --dashboard-agent-listen-port="${DASHBOARD_AGENT_LISTEN_PORT}" \
+  --metrics-export-port="${METRICS_EXPORT_PORT}" \
+  --min-worker-port="${MIN_WORKER_PORT}" \
+  --max-worker-port="${MAX_WORKER_PORT}" \
   --num-gpus="${NUM_GPUS}"
 
 echo "[worker] started and joined cluster"
+echo "[worker] fixed ports:"
+echo "  node_manager: ${NODE_MANAGER_PORT}"
+echo "  object_manager: ${OBJECT_MANAGER_PORT}"
+echo "  dashboard_agent: ${DASHBOARD_AGENT_LISTEN_PORT}"
+echo "  metrics_export: ${METRICS_EXPORT_PORT}"
+echo "  workers: ${MIN_WORKER_PORT}-${MAX_WORKER_PORT}"
