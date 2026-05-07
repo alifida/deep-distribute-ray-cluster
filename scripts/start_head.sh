@@ -2,7 +2,16 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "${PROJECT_DIR}/.venv/bin/activate"
+VENV_DIR="${PROJECT_DIR}/.venv"
+if [[ ! -f "${VENV_DIR}/bin/activate" ]]; then
+  echo "[head] .venv not found, running setup_node.sh..."
+  bash "${PROJECT_DIR}/scripts/setup_node.sh"
+fi
+source "${VENV_DIR}/bin/activate"
+if ! command -v ray >/dev/null 2>&1; then
+  echo "[head] ray not found in venv, installing ray..."
+  pip install ray
+fi
 
 RAY_PORT="${RAY_PORT:-6379}"
 DASHBOARD_PORT="${DASHBOARD_PORT:-8265}"
