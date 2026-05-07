@@ -1,0 +1,135 @@
+# Ray Async Parameter-Server Training (Zero-Config Starter)
+
+This project is a Ray implementation of your current idea in `latest_impl/latest_impl`:
+- asynchronous parallel worker training,
+- dataset partitioning across workers,
+- central parameter server updates,
+- first full-gradient submission, then delta-gradient submissions,
+- worker pull of latest global state after every submission,
+- configurable sync cadence (`sync_every_examples`),
+- communication/network cost metrics in results.
+
+## 1) Install
+
+```bash
+cd /home/ali/Documents/phd/latest_impl/ray_ps_async
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Or use one command:
+
+```bash
+bash scripts/setup_node.sh
+```
+
+## 2) Dataset format
+
+Use folder-per-class under one root:
+
+```text
+dataset_root/
+  class0/
+    img1.jpg
+    img2.jpg
+  class1/
+    img3.jpg
+    img4.jpg
+```
+
+Binary classification is expected by default (`0/1` labels from class index order).
+
+## 3) Run from CLI
+
+```bash
+python cli.py \
+  --dataset-root "/path/to/dataset_root" \
+  --num-workers 2 \
+  --epochs 2 \
+  --sync-every-examples 8 \
+  --num-gpus-per-worker 1
+```
+
+Outputs JSON with:
+- per-worker run stats,
+- validation/test metrics,
+- communication cost (`bytes_worker_to_ps`, `bytes_ps_to_worker`, `total_bytes`, message counts),
+- dataset partition sizes.
+
+## 4) Run as API interface
+
+```bash
+uvicorn api:app --host 0.0.0.0 --port 8080
+```
+
+Open UI dashboard:
+
+```text
+http://127.0.0.1:8080/
+```
+
+Start experiment:
+
+```bash
+curl -X POST "http://127.0.0.1:8080/experiments" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dataset_root": "/path/to/dataset_root",
+    "num_workers": 2,
+    "epochs": 2,
+    "batch_size": 8,
+    "sync_every_examples": 8,
+    "num_gpus_per_worker": 1
+  }'
+```
+
+Check status/result:
+
+```bash
+curl "http://127.0.0.1:8080/experiments/<job_id>"
+```
+
+## Notes
+
+- Local zero-config mode works with `ray.init()` automatically.
+- For a cluster, start Ray head/worker nodes normally and keep this code unchanged.
+- This implementation avoids external DB dependency for faster setup and lower runtime overhead.
+
+## LAN Multi-Worker (Simple Scripts)
+
+You need the project folder on every machine that will run Ray (head + workers), because workers must import the training code and Python dependencies.
+
+### 1) On every machine (once)
+
+```bash
+cd /home/ali/Documents/phd/latest_impl/ray_ps_async
+bash scripts/setup_node.sh
+```
+
+### 2) On head machine
+
+```bash
+cd /home/ali/Documents/phd/latest_impl/ray_ps_async
+bash scripts/start_head.sh
+bash scripts/start_ui.sh
+```
+
+### 3) On each worker machine (1 GPU each)
+
+```bash
+cd /home/ali/Documents/phd/latest_impl/ray_ps_async
+NUM_GPUS=1 bash scripts/start_worker.sh <HEAD_LAN_IP> 6379
+```
+
+### 4) In UI
+
+- Open `http://<HEAD_LAN_IP>:8080/`
+- Set `Ray Address` = `auto`
+- Set `GPUs per Worker` = `1`
+- Set `Workers` = number of GPUs/nodes you want to use
+
+### Dataset path requirement
+
+`dataset_root` must be reachable from worker nodes too (shared filesystem path or same absolute path copied to all nodes).
+

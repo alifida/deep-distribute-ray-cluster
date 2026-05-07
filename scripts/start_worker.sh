@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+  echo "Usage: $0 <head_ip> [head_port]"
+  exit 1
+fi
+
+HEAD_IP="$1"
+HEAD_PORT="${2:-6379}"
+
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${PROJECT_DIR}/.venv/bin/activate"
+
+NUM_GPUS="${NUM_GPUS:-1}"
+
+echo "[worker] stopping old Ray runtime"
+ray stop || true
+
+echo "[worker] connecting to ${HEAD_IP}:${HEAD_PORT}"
+ray start \
+  --address="${HEAD_IP}:${HEAD_PORT}" \
+  --num-gpus="${NUM_GPUS}"
+
+echo "[worker] started and joined cluster"
