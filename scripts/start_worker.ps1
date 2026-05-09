@@ -83,7 +83,7 @@ Write-Host "[worker] stopping old Ray runtime"
 
 $HeadAddress = "{0}:{1}" -f $HeadIp, $HeadPort
 Write-Host ("[worker] connecting to {0}" -f $HeadAddress)
-& $VenvPython -m ray.scripts.scripts start `
+$rayOutput = & $VenvPython -m ray.scripts.scripts start `
   --address="$HeadAddress" `
   --node-manager-port="$NodeManagerPort" `
   --object-manager-port="$ObjectManagerPort" `
@@ -91,9 +91,25 @@ Write-Host ("[worker] connecting to {0}" -f $HeadAddress)
   --metrics-export-port="$MetricsPort" `
   --min-worker-port="$MinWorkerPort" `
   --max-worker-port="$MaxWorkerPort" `
-  --num-gpus="$NumGpus"
-if ($LASTEXITCODE -ne 0) {
-    throw "[worker] ray start failed with exit code $LASTEXITCODE. Check network/firewall and mixed-OS cluster flag."
+  --num-gpus="$NumGpus" 2>&1
+$rayExitCode = $LASTEXITCODE
+$rayText = ($rayOutput | Out-String)
+if ($rayOutput) {
+    Write-Host $rayText
+}
+if ($rayExitCode -ne 0) {
+    $clusterPy = $null
+    $workerPy = $null
+    if ($rayText -match "cluster was started with:\s*[\r\n]+\s*Ray:\s*[^\r\n]+\s*[\r\n]+\s*Python:\s*([0-9]+\.[0-9]+\.[0-9]+)") {
+        $clusterPy = $matches[1]
+    }
+    if ($rayText -match "This process on node .*? was started with:\s*[\r\n]+\s*Ray:\s*[^\r\n]+\s*[\r\n]+\s*Python:\s*([0-9]+\.[0-9]+\.[0-9]+)") {
+        $workerPy = $matches[1]
+    }
+    if ($clusterPy -and $workerPy -and $clusterPy -ne $workerPy) {
+        throw "[worker] Ray/Python version mismatch: head uses Python $clusterPy while this worker uses Python $workerPy. Install exact same Python patch version as head, recreate .venv, rerun setup_node.ps1, then start_worker.ps1."
+    }
+    throw "[worker] ray start failed with exit code $rayExitCode. Check network/firewall, mixed-OS flag (RAY_ENABLE_WINDOWS_OR_OSX_CLUSTER=1), and version compatibility."
 }
 
 Write-Host "[worker] started and joined cluster"
