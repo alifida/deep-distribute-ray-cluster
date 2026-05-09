@@ -39,6 +39,15 @@ try {
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[worker] ray not found in venv, installing ray..."
     & $VenvPython -m pip install ray
+    if ($LASTEXITCODE -ne 0) {
+        $pyVer = & $VenvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"
+        throw "[worker] Failed to install ray. Python version: $pyVer. Use Python 3.10 or 3.11 on Windows and rerun setup_node.ps1."
+    }
+    & $VenvPython -c "import ray" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        $pyVer = & $VenvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"
+        throw "[worker] Ray import still failing. Python version: $pyVer. Use Python 3.10 or 3.11 and rerun setup."
+    }
 }
 
 $HeadIp = if ($HeadIp) { $HeadIp } elseif ($env:HEAD_IP) { $env:HEAD_IP } else { "" }
