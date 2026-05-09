@@ -147,6 +147,12 @@ bash scripts/start_head.sh
 bash scripts/start_ui.sh
 ```
 
+Stop head runtime:
+
+```bash
+bash scripts/stop_head.sh
+```
+
 ### 3) On each worker machine (1 GPU each)
 
 ```bash
@@ -158,6 +164,12 @@ You can still override explicitly:
 
 ```bash
 NUM_GPUS=1 bash scripts/start_worker.sh <HEAD_LAN_IP> 6379
+```
+
+Stop worker runtime:
+
+```bash
+bash scripts/stop_worker.sh
 ```
 
 ### 4) In UI
@@ -219,7 +231,9 @@ Batch wrappers are included in `scripts/` and call the PowerShell scripts with s
 - `setup_node.bat`
 - `start_head.bat`
 - `start_ui.bat`
+- `stop_head.bat`
 - `start_worker.bat <HEAD_IP> [HEAD_PORT]`
+- `stop_worker.bat`
 - `check_ports.bat [TARGET_IP] [quick|full]`
 
 Wrappers also work without IP args when `HEAD_IP` is set in `cluster_config.env`.

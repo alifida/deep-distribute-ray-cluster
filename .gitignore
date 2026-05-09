@@ -1,6 +1,6 @@
 .venv/
 venv/
-
+tmp_dataset/
 # Generated experiment artifacts (keep docs trackable)
 new_updates/ablation_*.csv
 new_updates/ablation_*.json
