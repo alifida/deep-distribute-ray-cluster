@@ -60,9 +60,10 @@ $MaxWorkerPort = if ($env:WORKER_MAX_WORKER_PORT) { $env:WORKER_MAX_WORKER_PORT 
 Write-Host "[worker] stopping old Ray runtime"
 & $VenvPython -m ray.scripts.scripts stop
 
-Write-Host "[worker] connecting to $HeadIp:$HeadPort"
+$HeadAddress = "{0}:{1}" -f $HeadIp, $HeadPort
+Write-Host ("[worker] connecting to {0}" -f $HeadAddress)
 & $VenvPython -m ray.scripts.scripts start `
-  --address="$HeadIp`:$HeadPort" `
+  --address="$HeadAddress" `
   --node-manager-port="$NodeManagerPort" `
   --object-manager-port="$ObjectManagerPort" `
   --dashboard-agent-listen-port="$DashboardAgentPort" `
