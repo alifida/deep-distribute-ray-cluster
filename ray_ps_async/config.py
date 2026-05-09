@@ -15,6 +15,15 @@ class ExperimentConfig:
     ray_address: str = "local"
     data_mode: str = "shared_path"
     allow_gpu_fallback: bool = True
+    ssp_staleness: int = 2
+    quorum_fraction: float = 0.6
+    round_timeout_ms: int = 100
+    quantization: str = "fp32"  # fp32 | fp16 | q8 | topk
+    topk_pct: float = 1.0
+    residual_feedback: bool = True
+    ps_optimizer: str = "adam"  # adam | sgd
+    ps_momentum: float = 0.9
+    adaptive_sync: bool = True
     use_gpu_on_ps: bool = False
     random_seed: int = 42
     model_name: str = "tiny"

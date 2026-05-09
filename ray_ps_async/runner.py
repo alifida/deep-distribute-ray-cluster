@@ -44,11 +44,15 @@ def _evaluate(model: tf.keras.Model, samples: List[Tuple[str, int]], image_size:
 
 
 def run_experiment(config: ExperimentConfig) -> Dict:
+    np.random.seed(int(config.random_seed))
+    tf.random.set_seed(int(config.random_seed))
+    runtime_env = {"working_dir": os.getcwd()}
+
     if not ray.is_initialized():
         if str(config.ray_address).lower() == "auto":
-            ray.init(address="auto", ignore_reinit_error=True)
+            ray.init(address="auto", ignore_reinit_error=True, runtime_env=runtime_env)
         else:
-            ray.init(ignore_reinit_error=True)
+            ray.init(ignore_reinit_error=True, runtime_env=runtime_env)
 
     data: DatasetBundle = prepare_dataset(config)
     available = ray.available_resources()
@@ -61,20 +65,30 @@ def run_experiment(config: ExperimentConfig) -> Dict:
         effective_gpu_per_worker = 0.0
         gpu_fallback_applied = True
 
-    runtime_env = {"working_dir": os.getcwd()}
+    warnings: list[str] = []
+    if str(config.quantization).lower() != "topk" and bool(config.residual_feedback):
+        warnings.append("residual_feedback has effect only when quantization=topk.")
+    if str(config.ps_optimizer).lower() != "sgd" and float(config.ps_momentum) != 0.9:
+        warnings.append("ps_momentum is only used with ps_optimizer=sgd.")
 
     def _run_attempt(worker_gpu: float, data_mode: str):
-        ps_opts = {"num_gpus": 1 if config.use_gpu_on_ps and worker_gpu > 0 else 0, "runtime_env": runtime_env}
+        ps_opts = {"num_gpus": 1 if config.use_gpu_on_ps and worker_gpu > 0 else 0}
         ps = ParameterServer.options(**ps_opts).remote(config)
         dataset_server = None
         if str(data_mode).lower() == "stream_from_head":
-            dataset_server = DatasetServer.options(runtime_env=runtime_env).remote(data.train_partitions, config.image_size)
+            dataset_server = DatasetServer.remote(data.train_partitions, config.image_size)
 
         workers = []
+        worker_ids = []
         for idx in range(config.num_workers):
-            opts = {"num_gpus": float(worker_gpu), "runtime_env": runtime_env}
-            actor = Worker.options(**opts).remote(f"worker_{idx}", idx, data.train_partitions[idx], config)
+            opts = {"num_gpus": float(worker_gpu)}
+            worker_id = f"worker_{idx}"
+            actor = Worker.options(**opts).remote(worker_id, idx, data.train_partitions[idx], config)
             workers.append(actor)
+            worker_ids.append(worker_id)
+
+        # Register worker handles in PS for push-first propagation after each committed round.
+        ray.get(ps.set_worker_handles.remote(worker_ids, workers))
 
         worker_results_local = ray.get([w.train.remote(ps, dataset_server) for w in workers])
         global_state_local = ray.get(ps.get_global_weights.remote())
@@ -127,6 +141,7 @@ def run_experiment(config: ExperimentConfig) -> Dict:
             "data_mode": final_data_mode,
             "fallback_reason": fallback_reason,
             "attempts": attempts,
+            "warnings": warnings,
         },
         "workers": worker_results,
         "validation_metrics": val_metrics,

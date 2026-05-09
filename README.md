@@ -51,6 +51,34 @@ python cli.py \
   --num-gpus-per-worker 1
 ```
 
+Run ablation suite (baseline -> full novelty):
+
+```bash
+python ablation_cli.py \
+  --dataset-root "/path/to/dataset_root" \
+  --num-workers 2 \
+  --epochs 1 \
+  --output-dir new_updates
+```
+
+Run repeated research evaluation pack (CI + multi-dataset):
+
+```bash
+python research_pack_cli.py \
+  --dataset-root "/path/to/dataset_root" \
+  --dataset-roots-csv "/path/to/ds1,/path/to/ds2" \
+  --repeats 3 \
+  --num-workers 2 \
+  --epochs 1 \
+  --output-dir new_updates
+```
+
+Artifacts generated in `new_updates/`:
+- `research_pack_*.json` (full structured output)
+- `research_pack_runs_*.csv` (all raw runs)
+- `research_pack_summary_*.csv` (mean + CI95 summary)
+- `research_pack_*.md` (paper-ready markdown tables)
+
 Outputs JSON with:
 - per-worker run stats,
 - validation/test metrics,
@@ -103,14 +131,14 @@ You need the project folder on every machine that will run Ray (head + workers),
 ### 1) On every machine (once)
 
 ```bash
-cd /home/ali/Documents/phd/latest_impl/ray_ps_async
+cd /home/ali/Documents/phd/deep-distribute-ray-cluster
 bash scripts/setup_node.sh
 ```
 
 ### 2) On head machine
 
 ```bash
-cd /home/ali/Documents/phd/latest_impl/ray_ps_async
+cd /home/ali/Documents/phd/deep-distribute-ray-cluster
 bash scripts/start_head.sh
 bash scripts/start_ui.sh
 ```
@@ -118,7 +146,7 @@ bash scripts/start_ui.sh
 ### 3) On each worker machine (1 GPU each)
 
 ```bash
-cd /home/ali/Documents/phd/latest_impl/ray_ps_async
+cd /home/ali/Documents/phd/deep-distribute-ray-cluster
 NUM_GPUS=1 bash scripts/start_worker.sh <HEAD_LAN_IP> 6379
 ```
 
@@ -132,4 +160,55 @@ NUM_GPUS=1 bash scripts/start_worker.sh <HEAD_LAN_IP> 6379
 ### Dataset path requirement
 
 `dataset_root` must be reachable from worker nodes too (shared filesystem path or same absolute path copied to all nodes).
+
+## Windows (PowerShell) Scripts
+
+For Windows machines, use the PowerShell versions in `scripts/`:
+
+### 1) Setup node (once)
+
+```powershell
+cd C:\path\to\deep-distribute-ray-cluster
+.\scripts\setup_node.ps1
+```
+
+### 2) Start head node
+
+```powershell
+cd C:\path\to\deep-distribute-ray-cluster
+.\scripts\start_head.ps1
+.\scripts\start_ui.ps1
+```
+
+### 3) Start worker node
+
+```powershell
+cd C:\path\to\deep-distribute-ray-cluster
+$env:NUM_GPUS=1
+.\scripts\start_worker.ps1 <HEAD_LAN_IP> 6379
+```
+
+### 4) Optional: check ports
+
+```powershell
+.\scripts\check_ports.ps1 <HEAD_LAN_IP> quick
+.\scripts\check_ports.ps1 <HEAD_LAN_IP> full
+```
+
+### Notes for Windows
+
+- If PowerShell blocks scripts, run once as admin:
+  - `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+- Use Python Launcher (`py -3`) or a Python 3 install in PATH.
+- Keep project path consistent on all nodes where possible.
+
+### Optional `.bat` wrappers (double-click / cmd-friendly)
+
+Batch wrappers are included in `scripts/` and call the PowerShell scripts with safe flags:
+
+- `setup_node.bat`
+- `start_head.bat`
+- `start_ui.bat`
+- `start_worker.bat <HEAD_IP> [HEAD_PORT]`
+- `check_ports.bat <TARGET_IP> [quick|full]`
 

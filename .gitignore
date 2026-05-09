@@ -1,2 +1,10 @@
 .venv/
 venv/
+
+# Generated experiment artifacts (keep docs trackable)
+new_updates/ablation_*.csv
+new_updates/ablation_*.json
+new_updates/research_pack_*.json
+new_updates/research_pack_runs_*.csv
+new_updates/research_pack_summary_*.csv
+new_updates/jobs_history.json
