@@ -1,19 +1,7 @@
-[worker] .venv missing, running setup_node.ps1...
-[setup] project: E:\workspace\windows\phd\deep-distribute-ray-cluster
-Requirement already satisfied: pip in e:\workspace\windows\phd\deep-distribute-ray-cluster\.venv\lib\site-packages (24.3.1)
-Collecting pip
-  Using cached pip-26.1.1-py3-none-any.whl.metadata (4.6 kB)
-Using cached pip-26.1.1-py3-none-any.whl (1.8 MB)
-Installing collected packages: pip
-  Attempting uninstall: pip
-    Found existing installation: pip 24.3.1
-    Uninstalling pip-24.3.1:
-      Successfully uninstalled pip-24.3.1
-Successfully installed pip-26.1.1
-ERROR: Could not find a version that satisfies the requirement ray>=2.20.0 (from versions: none)
-ERROR: No matching distribution found for ray>=2.20.0
-[setup] done
-[setup] activate with: .\.venv\Scripts\Activate.ps1
+Microsoft Windows [Version 10.0.19042.685]
+(c) 2020 Microsoft Corporation. All rights reserved.
+
+E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts>start_worker.bat
 python.exe : Traceback (most recent call last):
 At E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts\start_worker.ps1:38 char:1
 + & $VenvPython -c "import ray" 2>$null
@@ -25,27 +13,3 @@ At E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts\start_worker.ps1
 [start_worker.bat] FAILED with exit code 1.
 Check HEAD_IP in scripts\cluster_config.env or pass HEAD_IP explicitly.
 Press any key to close this window...
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
