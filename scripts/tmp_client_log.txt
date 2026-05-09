@@ -1,13 +1,18 @@
-Microsoft Windows [Version 10.0.19042.685]
-(c) 2020 Microsoft Corporation. All rights reserved.
-
 E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts>start_worker.bat
-python.exe : Traceback (most recent call last):
-At E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts\start_worker.ps1:38 char:1
-+ & $VenvPython -c "import ray" 2>$null
-+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (Traceback (most recent call last)::String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
+  File "<string>", line 1
+    import
+          ^
+SyntaxError: Expected one or more names after 'import'
+[worker] ray not found in venv, installing ray...
+ERROR: Could not find a version that satisfies the requirement ray (from versions: none)
+ERROR: No matching distribution found for ray
+[worker] Failed to install ray. Python version: 3.13.1. Use Python 3.10 or 3.11 on Windows and rerun setup_node.ps1.
+At E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts\start_worker.ps1:49 char:9
++         throw "[worker] Failed to install ray. Python version: $pyVer ...
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: ([worker] Failed...setup_node.ps1.:String) [], RuntimeException
+    + FullyQualifiedErrorId : [worker] Failed to install ray. Python version: 3.13.1. Use Python 3.10 or 3.11 on Windo
+   ws and rerun setup_node.ps1.
 
 
 [start_worker.bat] FAILED with exit code 1.

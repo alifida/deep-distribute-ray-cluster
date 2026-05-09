@@ -7,8 +7,12 @@ $ErrorActionPreference = "Stop"
 
 function Test-RayImport {
     param([Parameter(Mandatory = $true)][string]$PythonExe)
-    $proc = Start-Process -FilePath $PythonExe -ArgumentList "-c", "import ray" -NoNewWindow -Wait -PassThru
-    return ($proc.ExitCode -eq 0)
+    try {
+        & $PythonExe -c "import ray" *> $null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    }
 }
 
 $ProjectDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -32,8 +36,10 @@ if (-not (Test-Path $VenvPython)) {
 
 try {
     $prefix = & $VenvPython -c "import sys; print(sys.prefix)"
-    if ($prefix.Trim() -ne $VenvDir) {
-        Write-Host "[worker] stale .venv detected, running setup_node.ps1..."
+    $pyMm = & $VenvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+    $supported = @("3.10", "3.11") -contains $pyMm.Trim()
+    if ($prefix.Trim() -ne $VenvDir -or -not $supported) {
+        Write-Host "[worker] stale/unsupported .venv detected, running setup_node.ps1..."
         & (Join-Path $PSScriptRoot "setup_node.ps1")
     }
 } catch {

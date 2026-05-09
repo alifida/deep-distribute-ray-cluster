@@ -17,8 +17,13 @@ Write-Host "[setup] project: $ProjectDir"
 if (Test-Path $VenvPython) {
     try {
         $prefix = & $VenvPython -c "import sys; print(sys.prefix)"
-        if ($prefix.Trim() -ne $VenvDir) {
+        $pyMm = & $VenvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+        $supported = @("3.10", "3.11") -contains $pyMm.Trim()
+        if ($prefix.Trim() -ne $VenvDir -or -not $supported) {
             Write-Host "[setup] existing .venv points to old path, recreating..."
+            if (-not $supported) {
+                Write-Host "[setup] existing .venv python version ($pyMm) is not supported for Ray on Windows, recreating..."
+            }
             Remove-Item -Recurse -Force $VenvDir
         }
     } catch {
