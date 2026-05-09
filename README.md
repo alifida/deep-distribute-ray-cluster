@@ -126,6 +126,10 @@ curl "http://127.0.0.1:8080/experiments/<job_id>"
 
 ## LAN Multi-Worker (Simple Scripts)
 
+Shared config file:
+- Edit `scripts/cluster_config.env` once (HEAD_IP, ports, GPU defaults).
+- Linux and Windows scripts auto-read this file.
+
 You need the project folder on every machine that will run Ray (head + workers), because workers must import the training code and Python dependencies.
 
 ### 1) On every machine (once)
@@ -147,6 +151,12 @@ bash scripts/start_ui.sh
 
 ```bash
 cd /home/ali/Documents/phd/deep-distribute-ray-cluster
+bash scripts/start_worker.sh
+```
+
+You can still override explicitly:
+
+```bash
 NUM_GPUS=1 bash scripts/start_worker.sh <HEAD_LAN_IP> 6379
 ```
 
@@ -191,8 +201,8 @@ $env:NUM_GPUS=1
 ### 4) Optional: check ports
 
 ```powershell
-.\scripts\check_ports.ps1 <HEAD_LAN_IP> quick
-.\scripts\check_ports.ps1 <HEAD_LAN_IP> full
+.\scripts\check_ports.ps1 quick
+.\scripts\check_ports.ps1 full
 ```
 
 ### Notes for Windows
@@ -210,5 +220,7 @@ Batch wrappers are included in `scripts/` and call the PowerShell scripts with s
 - `start_head.bat`
 - `start_ui.bat`
 - `start_worker.bat <HEAD_IP> [HEAD_PORT]`
-- `check_ports.bat <TARGET_IP> [quick|full]`
+- `check_ports.bat [TARGET_IP] [quick|full]`
+
+Wrappers also work without IP args when `HEAD_IP` is set in `cluster_config.env`.
 

@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 <target_ip> [quick|full]"
-  echo "  quick: checks key control ports only"
-  echo "  full:  checks control + worker port ranges (default)"
-  exit 1
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONFIG_FILE="${PROJECT_DIR}/scripts/cluster_config.env"
+if [[ -f "${CONFIG_FILE}" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "${CONFIG_FILE}"
+  set +a
 fi
 
-TARGET_IP="$1"
+TARGET_IP="${1:-${HEAD_IP:-}}"
 MODE="${2:-full}"
+if [[ -z "${TARGET_IP}" ]]; then
+  echo "Usage: $0 <target_ip> [quick|full]"
+  echo "Or set HEAD_IP in scripts/cluster_config.env"
+  exit 1
+fi
 
 check_port() {
   local host="$1"

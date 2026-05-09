@@ -1,9 +1,26 @@
 param(
-    [Parameter(Mandatory = $true)][string]$TargetIp,
+    [Parameter(Mandatory = $false)][string]$TargetIp,
     [Parameter(Mandatory = $false)][ValidateSet("quick","full")][string]$Mode = "full"
 )
 
 $ErrorActionPreference = "Stop"
+
+if (Test-Path (Join-Path $PSScriptRoot "cluster_config.env")) {
+    Get-Content (Join-Path $PSScriptRoot "cluster_config.env") | ForEach-Object {
+        $line = $_.Trim()
+        if (-not $line -or $line.StartsWith("#")) { return }
+        if ($line -match "^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$") {
+            [Environment]::SetEnvironmentVariable($matches[1], $matches[2], "Process")
+        }
+    }
+}
+
+$TargetIp = if ($TargetIp) { $TargetIp } elseif ($env:HEAD_IP) { $env:HEAD_IP } else { "" }
+if (-not $TargetIp) {
+    Write-Host "Usage: .\scripts\check_ports.ps1 <TARGET_IP> [quick|full]"
+    Write-Host "Or set HEAD_IP in scripts\cluster_config.env"
+    exit 1
+}
 
 function Test-Port {
     param([string]$Host, [int]$Port)

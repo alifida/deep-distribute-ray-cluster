@@ -2,6 +2,13 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONFIG_FILE="${PROJECT_DIR}/scripts/cluster_config.env"
+if [[ -f "${CONFIG_FILE}" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "${CONFIG_FILE}"
+  set +a
+fi
 VENV_DIR="${PROJECT_DIR}/.venv"
 if [[ ! -x "${VENV_DIR}/bin/python" ]] || [[ "$("${VENV_DIR}/bin/python" -c 'import sys; print(sys.prefix)' 2>/dev/null || true)" != "${VENV_DIR}" ]]; then
   echo "[head] .venv missing or stale, running setup_node.sh..."

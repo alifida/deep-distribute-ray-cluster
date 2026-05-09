@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 192.18.99 6379"
-  exit 1
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONFIG_FILE="${PROJECT_DIR}/scripts/cluster_config.env"
+if [[ -f "${CONFIG_FILE}" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "${CONFIG_FILE}"
+  set +a
 fi
 
-HEAD_IP="$1"
-HEAD_PORT="${2:-6379}"
-
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+HEAD_IP="${1:-${HEAD_IP:-}}"
+HEAD_PORT="${2:-${HEAD_PORT:-6379}}"
+if [[ -z "${HEAD_IP}" ]]; then
+  echo "Usage: $0 <HEAD_IP> [HEAD_PORT]"
+  echo "Or set HEAD_IP in scripts/cluster_config.env"
+  exit 1
+fi
 VENV_DIR="${PROJECT_DIR}/.venv"
 if [[ ! -x "${VENV_DIR}/bin/python" ]] || [[ "$("${VENV_DIR}/bin/python" -c 'import sys; print(sys.prefix)' 2>/dev/null || true)" != "${VENV_DIR}" ]]; then
   echo "[worker] .venv missing or stale, running setup_node.sh..."
@@ -22,12 +29,12 @@ fi
 RAY_CMD=("${VENV_DIR}/bin/python" -m ray.scripts.scripts)
 
 NUM_GPUS="${NUM_GPUS:-1}"
-NODE_MANAGER_PORT="${NODE_MANAGER_PORT:-10011}"
-OBJECT_MANAGER_PORT="${OBJECT_MANAGER_PORT:-10012}"
-DASHBOARD_AGENT_LISTEN_PORT="${DASHBOARD_AGENT_LISTEN_PORT:-10014}"
-METRICS_EXPORT_PORT="${METRICS_EXPORT_PORT:-10015}"
-MIN_WORKER_PORT="${MIN_WORKER_PORT:-12000}"
-MAX_WORKER_PORT="${MAX_WORKER_PORT:-12999}"
+NODE_MANAGER_PORT="${WORKER_NODE_MANAGER_PORT:-${NODE_MANAGER_PORT:-10011}}"
+OBJECT_MANAGER_PORT="${WORKER_OBJECT_MANAGER_PORT:-${OBJECT_MANAGER_PORT:-10012}}"
+DASHBOARD_AGENT_LISTEN_PORT="${WORKER_DASHBOARD_AGENT_LISTEN_PORT:-${DASHBOARD_AGENT_LISTEN_PORT:-10014}}"
+METRICS_EXPORT_PORT="${WORKER_METRICS_EXPORT_PORT:-${METRICS_EXPORT_PORT:-10015}}"
+MIN_WORKER_PORT="${WORKER_MIN_WORKER_PORT:-${MIN_WORKER_PORT:-12000}}"
+MAX_WORKER_PORT="${WORKER_MAX_WORKER_PORT:-${MAX_WORKER_PORT:-12999}}"
 
 echo "[worker] stopping old Ray runtime"
 "${RAY_CMD[@]}" stop || true
