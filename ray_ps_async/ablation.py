@@ -4,7 +4,7 @@ import csv
 import json
 import os
 from datetime import datetime
-from typing import Dict, List
+from typing import Callable, Dict, List, Optional
 
 from ray_ps_async.config import ExperimentConfig
 from ray_ps_async.runner import run_experiment
@@ -65,11 +65,19 @@ def get_presets() -> Dict[str, Dict]:
     }
 
 
-def run_ablation_suite(base_cfg: ExperimentConfig, output_dir: str | None = None) -> Dict:
+def run_ablation_suite(
+    base_cfg: ExperimentConfig,
+    output_dir: str | None = None,
+    should_continue: Optional[Callable[[], bool]] = None,
+) -> Dict:
     presets = get_presets()
     rows: List[Dict] = []
     full_results: Dict[str, Dict] = {}
+    aborted = False
     for name, overrides in presets.items():
+        if should_continue is not None and not should_continue():
+            aborted = True
+            break
         cfg_dict = {**base_cfg.__dict__, **overrides}
         cfg = ExperimentConfig(**cfg_dict)
         result = run_experiment(cfg)
@@ -89,8 +97,10 @@ def run_ablation_suite(base_cfg: ExperimentConfig, output_dir: str | None = None
             }
         )
 
-    output = {"rows": rows, "results": full_results}
-    if output_dir:
+    output: Dict = {"rows": rows, "results": full_results}
+    if aborted:
+        output["aborted"] = True
+    if output_dir and rows:
         os.makedirs(output_dir, exist_ok=True)
         stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         json_path = os.path.join(output_dir, f"ablation_{stamp}.json")

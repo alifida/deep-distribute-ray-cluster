@@ -5,7 +5,7 @@ import json
 import os
 from datetime import datetime
 from math import sqrt
-from typing import Dict, List
+from typing import Callable, Dict, List, Optional
 
 import numpy as np
 
@@ -35,17 +35,22 @@ def run_research_pack(
     dataset_roots: List[str],
     repeats: int = 3,
     output_dir: str | None = None,
+    should_continue: Optional[Callable[[], bool]] = None,
 ) -> Dict:
     datasets = dataset_roots or [base_cfg.dataset_root]
     repeats = max(1, int(repeats))
 
     all_runs: List[Dict] = []
     grouped: Dict[tuple[str, str], Dict[str, List[float]]] = {}
+    aborted = False
 
     for ds in datasets:
         for rep in range(repeats):
+            if should_continue is not None and not should_continue():
+                aborted = True
+                break
             cfg = ExperimentConfig(**{**base_cfg.__dict__, "dataset_root": ds, "random_seed": int(base_cfg.random_seed) + rep})
-            out = run_ablation_suite(cfg, output_dir=None)
+            out = run_ablation_suite(cfg, output_dir=None, should_continue=should_continue)
             for row in out.get("rows", []):
                 preset = str(row.get("preset", "unknown"))
                 run_entry = {"dataset_root": ds, "repeat": rep, **row}
@@ -58,6 +63,8 @@ def run_research_pack(
                 grouped[key]["auc"].append(float(row.get("auc", 0.0)))
                 grouped[key]["total_mb"].append(float(row.get("total_mb", 0.0)))
                 grouped[key]["messages"].append(float(row.get("messages", 0)))
+        if aborted:
+            break
 
     summary_rows: List[Dict] = []
     for (ds, preset), vals in sorted(grouped.items()):
@@ -121,6 +128,7 @@ def run_research_pack(
         "best_by_dataset": best_by_dataset,
         "all_runs": all_runs,
         "report_markdown": "\n".join(report_md),
+        "aborted": aborted,
     }
 
     if output_dir:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from threading import Lock
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import ray
@@ -18,13 +18,27 @@ from ray_ps_async.serialization import lists_to_weights
 
 RUNNING_EXPERIMENTS: dict[str, dict] = {}
 RUNNING_EXPERIMENTS_LOCK = Lock()
+# Job IDs removed via API force-delete while the worker thread may still be preparing data.
+FORCE_REMOVED_RUN_IDS: set[str] = set()
+FORCE_REMOVED_LOCK = Lock()
 
 
-def register_running_experiment(run_id: str, workers: List[ray.actor.ActorHandle], worker_ids: List[str]) -> None:
+def register_running_experiment(
+    run_id: str,
+    ps: ray.actor.ActorHandle,
+    workers: List[ray.actor.ActorHandle],
+    worker_ids: List[str],
+    dataset_server: Optional[ray.actor.ActorHandle],
+) -> None:
     if not run_id:
         return
     with RUNNING_EXPERIMENTS_LOCK:
-        RUNNING_EXPERIMENTS[run_id] = {"workers": workers, "worker_ids": worker_ids}
+        RUNNING_EXPERIMENTS[run_id] = {
+            "ps": ps,
+            "workers": workers,
+            "worker_ids": worker_ids,
+            "dataset_server": dataset_server,
+        }
 
 
 def unregister_running_experiment(run_id: str) -> None:
@@ -32,6 +46,43 @@ def unregister_running_experiment(run_id: str) -> None:
         return
     with RUNNING_EXPERIMENTS_LOCK:
         RUNNING_EXPERIMENTS.pop(run_id, None)
+
+
+def mark_experiment_force_removed(run_id: str) -> None:
+    """Signal run_experiment to abort before or during Ray actor setup (API force-delete)."""
+    if not run_id:
+        return
+    with FORCE_REMOVED_LOCK:
+        FORCE_REMOVED_RUN_IDS.add(run_id)
+
+
+def force_kill_experiment(run_id: str) -> Dict[str, object]:
+    """Kill PS, workers, and optional dataset server for this run_id (best-effort)."""
+    if not run_id:
+        return {"status": "skipped", "reason": "empty run_id"}
+    with RUNNING_EXPERIMENTS_LOCK:
+        entry = RUNNING_EXPERIMENTS.pop(run_id, None)
+    if not entry:
+        return {"status": "no_active_actors", "run_id": run_id}
+    killed: List[str] = []
+    errors: List[str] = []
+
+    def _kill(handle: ray.actor.ActorHandle, label: str) -> None:
+        try:
+            ray.kill(handle, no_restart=True)
+            killed.append(label)
+        except Exception as exc:
+            errors.append(f"{label}: {exc}")
+
+    for w in entry.get("workers") or []:
+        _kill(w, "worker")
+    ds = entry.get("dataset_server")
+    if ds is not None:
+        _kill(ds, "dataset_server")
+    ps = entry.get("ps")
+    if ps is not None:
+        _kill(ps, "parameter_server")
+    return {"status": "ok", "run_id": run_id, "killed": killed, "errors": errors}
 
 
 def get_live_worker_logs(run_id: str, limit: int = 80) -> dict:
@@ -89,6 +140,10 @@ def run_experiment(config: ExperimentConfig) -> Dict:
             ray.init(ignore_reinit_error=True, runtime_env=runtime_env)
 
     data: DatasetBundle = prepare_dataset(config)
+    run_id = str(getattr(config, "run_id", "") or "")
+    with FORCE_REMOVED_LOCK:
+        if run_id and run_id in FORCE_REMOVED_RUN_IDS:
+            raise RuntimeError("Experiment cancelled (job removed from server).")
     available = ray.available_resources()
     available_gpus = float(available.get("GPU", 0.0))
     requested_gpu_per_worker = float(config.num_gpus_per_worker)
@@ -105,9 +160,10 @@ def run_experiment(config: ExperimentConfig) -> Dict:
     if str(config.ps_optimizer).lower() != "sgd" and float(config.ps_momentum) != 0.9:
         warnings.append("ps_momentum is only used with ps_optimizer=sgd.")
 
-    run_id = str(getattr(config, "run_id", "") or "")
-
     def _run_attempt(worker_gpu: float, data_mode: str):
+        with FORCE_REMOVED_LOCK:
+            if run_id and run_id in FORCE_REMOVED_RUN_IDS:
+                raise RuntimeError("Experiment cancelled (job removed from server).")
         ps_opts = {"num_gpus": 1 if config.use_gpu_on_ps and worker_gpu > 0 else 0}
         ps = ParameterServer.options(**ps_opts).remote(config)
         dataset_server = None
@@ -125,7 +181,7 @@ def run_experiment(config: ExperimentConfig) -> Dict:
 
         # Register worker handles in PS for push-first propagation after each committed round.
         ray.get(ps.set_worker_handles.remote(worker_ids, workers))
-        register_running_experiment(run_id, workers, worker_ids)
+        register_running_experiment(run_id, ps, workers, worker_ids, dataset_server)
 
         worker_results_local = ray.get([w.train.remote(ps, dataset_server) for w in workers])
         global_state_local = ray.get(ps.get_global_weights.remote())
@@ -195,4 +251,6 @@ def run_experiment(config: ExperimentConfig) -> Dict:
         }
     finally:
         unregister_running_experiment(run_id)
+        with FORCE_REMOVED_LOCK:
+            FORCE_REMOVED_RUN_IDS.discard(run_id)
 

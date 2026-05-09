@@ -32,4 +32,6 @@ class ExperimentConfig:
     test_split: float = 0.1
     max_samples_per_class: Optional[int] = None
     class_names: Optional[List[str]] = field(default=None)
+    # API / multi-job: ties Ray actors to this id for force-termination (see runner.register_running_experiment).
+    run_id: str = ""
 

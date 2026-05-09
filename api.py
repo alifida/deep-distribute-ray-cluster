@@ -5,7 +5,7 @@ import json
 import os
 import uuid
 
-from fastapi import BackgroundTasks, FastAPI
+from fastapi import BackgroundTasks, FastAPI, Query
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
@@ -53,6 +53,16 @@ app = FastAPI(title="Ray Async Parameter Server Trainer")
 JOBS: Dict[str, Dict] = {}
 JOBS_LOCK = Lock()
 JOBS_DB_PATH = os.path.join(os.path.dirname(__file__), "new_updates", "jobs_history.json")
+
+
+def _job_tracked_predicate(job_id: str):
+    """Used by ablation/research_pack to stop between presets when the API removes the job."""
+
+    def inner() -> bool:
+        with JOBS_LOCK:
+            return job_id in JOBS
+
+    return inner
 
 
 def _ensure_ray_connected() -> tuple[bool, str]:
@@ -167,15 +177,19 @@ def _run_job(job_id: str, request: ExperimentRequest, strategy_type: str = "cust
     try:
         runner: Callable = _experiment_runner()
         cfg = _build_config(_apply_strategy_to_request(request, strategy_type))
-        setattr(cfg, "run_id", job_id)
+        cfg.run_id = job_id
         result = runner(cfg)
         with JOBS_LOCK:
+            if job_id not in JOBS:
+                return
             JOBS[job_id]["status"] = "completed"
             JOBS[job_id]["result"] = result
             JOBS[job_id]["finished_at"] = _now_iso()
             _save_jobs_to_disk_locked()
     except Exception as exc:
         with JOBS_LOCK:
+            if job_id not in JOBS:
+                return
             JOBS[job_id]["status"] = "failed"
             JOBS[job_id]["error"] = str(exc)
             JOBS[job_id]["finished_at"] = _now_iso()
@@ -244,14 +258,23 @@ def _run_ablation(job_id: str, request: ExperimentRequest) -> None:
         from ray_ps_async.ablation import run_ablation_suite
 
         cfg = _build_config(request)
-        result = run_ablation_suite(cfg, output_dir=os.path.join(os.getcwd(), "new_updates"))
+        cfg.run_id = job_id
+        result = run_ablation_suite(
+            cfg,
+            output_dir=os.path.join(os.getcwd(), "new_updates"),
+            should_continue=_job_tracked_predicate(job_id),
+        )
         with JOBS_LOCK:
+            if job_id not in JOBS:
+                return
             JOBS[job_id]["status"] = "completed"
             JOBS[job_id]["result"] = result
             JOBS[job_id]["finished_at"] = _now_iso()
             _save_jobs_to_disk_locked()
     except Exception as exc:
         with JOBS_LOCK:
+            if job_id not in JOBS:
+                return
             JOBS[job_id]["status"] = "failed"
             JOBS[job_id]["error"] = str(exc)
             JOBS[job_id]["finished_at"] = _now_iso()
@@ -269,20 +292,26 @@ def _run_research_pack(job_id: str, request: ExperimentRequest) -> None:
         from ray_ps_async.research_pack import run_research_pack
 
         cfg = _build_config(request)
+        cfg.run_id = job_id
         dataset_roots = [x.strip() for x in str(request.dataset_roots_csv).split(",") if x.strip()]
         result = run_research_pack(
             cfg,
             dataset_roots=dataset_roots or [request.dataset_root],
             repeats=int(request.benchmark_repeats),
             output_dir=os.path.join(os.getcwd(), "new_updates"),
+            should_continue=_job_tracked_predicate(job_id),
         )
         with JOBS_LOCK:
+            if job_id not in JOBS:
+                return
             JOBS[job_id]["status"] = "completed"
             JOBS[job_id]["result"] = result
             JOBS[job_id]["finished_at"] = _now_iso()
             _save_jobs_to_disk_locked()
     except Exception as exc:
         with JOBS_LOCK:
+            if job_id not in JOBS:
+                return
             JOBS[job_id]["status"] = "failed"
             JOBS[job_id]["error"] = str(exc)
             JOBS[job_id]["finished_at"] = _now_iso()
@@ -533,6 +562,7 @@ def ui() -> str:
     .pill-running { background: #fff7ed; color: #b45309; }
     .pill-completed { background: #ecfdf5; color: #166534; }
     .pill-failed { background: #fef2f2; color: #b91c1c; }
+    .pill-cancelled { background: #f4f4f5; color: #52525b; }
     .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; }
     .charts > div { min-width: 0; }
     canvas {
@@ -618,6 +648,7 @@ def ui() -> str:
         <div><div class="small">Running</div><div id="kpi_running" class="kpi">0</div></div>
         <div><div class="small">Completed</div><div id="kpi_completed" class="kpi">0</div></div>
         <div><div class="small">Failed</div><div id="kpi_failed" class="kpi">0</div></div>
+        <div><div class="small">Cancelled</div><div id="kpi_cancelled" class="kpi">0</div></div>
       </div>
     </div>
     <div class="card">
@@ -710,7 +741,7 @@ def ui() -> str:
       <div class="card">
         <h3>Jobs And Strategy Selection</h3>
         <button class="icon-btn refresh" title="Refresh jobs" aria-label="Refresh jobs" onclick="refreshJobs()">⟳</button>
-        <button onclick="deleteFinishedJobs()">Delete Finished Jobs</button>
+        <button onclick="deleteFinishedJobs()">Delete finished / failed / cancelled</button>
         <div class="table-scroll" style="margin-top:8px;">
           <table>
             <thead>
@@ -1038,7 +1069,7 @@ def ui() -> str:
     }
 
     function updateKpis(jobs) {
-      const counts = {queued: 0, running: 0, completed: 0, failed: 0};
+      const counts = {queued: 0, running: 0, completed: 0, failed: 0, cancelled: 0};
       Object.values(jobs).forEach((j) => {
         const st = j.status || "queued";
         if (counts[st] !== undefined) counts[st] += 1;
@@ -1047,6 +1078,8 @@ def ui() -> str:
       document.getElementById("kpi_running").textContent = counts.running;
       document.getElementById("kpi_completed").textContent = counts.completed;
       document.getElementById("kpi_failed").textContent = counts.failed;
+      const kc = document.getElementById("kpi_cancelled");
+      if (kc) kc.textContent = counts.cancelled;
     }
 
     async function refreshJobs() {
@@ -1072,8 +1105,10 @@ def ui() -> str:
         if (status === "completed") {
           actionBtn = `<span class="action-icons"><button class="icon-btn" title="View job" aria-label="View job" onclick="viewJob('${jobId}')">👁</button><button class="icon-btn delete" title="Delete job" aria-label="Delete job" onclick="deleteJob('${jobId}')">🗑</button></span>`;
         } else if (status === "running") {
-          actionBtn = `<span class="action-icons"><button class="icon-btn" title="Live worker logs" aria-label="Live worker logs" onclick="viewLiveLogs('${jobId}')">📡</button></span>`;
-        } else if (status === "failed") {
+          actionBtn = `<span class="action-icons"><button class="icon-btn" title="Live worker logs" aria-label="Live worker logs" onclick="viewLiveLogs('${jobId}')">📡</button><button class="icon-btn delete" title="Stop and delete (kills Ray actors)" aria-label="Stop and delete job" onclick="deleteJobForce('${jobId}')">⏹</button></span>`;
+        } else if (status === "queued") {
+          actionBtn = `<span class="action-icons"><button class="icon-btn delete" title="Remove from queue" aria-label="Remove queued job" onclick="deleteJobForce('${jobId}')">⏹</button></span>`;
+        } else if (status === "failed" || status === "cancelled") {
           actionBtn = `<span class="action-icons"><button class="icon-btn delete" title="Delete job" aria-label="Delete job" onclick="deleteJob('${jobId}')">🗑</button></span>`;
         }
         tr.innerHTML = `
@@ -1132,6 +1167,25 @@ def ui() -> str:
         await refreshJobs();
       } catch (e) {
         alert("Delete failed: " + e.message);
+      }
+    }
+
+    async function deleteJobForce(jobId) {
+      const ok = window.confirm(
+        "Stop this job and remove it from the list?\\n\\nRunning jobs: Ray workers and parameter server for this job will be killed (best-effort). Queued jobs are removed before they start."
+      );
+      if (!ok) return;
+      try {
+        const res = await safeFetch(`/experiments/${jobId}?force=1`, { method: "DELETE" });
+        if (res.status !== "ok") {
+          alert(res.error || "Stop/delete failed.");
+          return;
+        }
+        if (selectedPlainJobId === jobId) selectedPlainJobId = null;
+        if (selectedCustomJobId === jobId) selectedCustomJobId = null;
+        await refreshJobs();
+      } catch (e) {
+        alert("Stop/delete failed: " + e.message);
       }
     }
 
@@ -1668,14 +1722,48 @@ def list_experiments() -> Dict[str, Dict]:
 
 
 @app.delete("/experiments/{job_id}")
-def delete_experiment(job_id: str) -> Dict[str, str]:
+def delete_experiment(job_id: str, force: bool = Query(False, description="Terminate running Ray actors and/or remove queued jobs, then delete the record.")) -> Dict:
+    from ray_ps_async.runner import force_kill_experiment, mark_experiment_force_removed
+
     with JOBS_LOCK:
         payload = JOBS.get(job_id)
         if not payload:
             return {"status": "not_found"}
         status = str(payload.get("status", ""))
-        if status not in {"completed", "failed"}:
-            return {"status": "error", "error": "Only completed/failed jobs can be deleted."}
+
+    if force:
+        if status == "running":
+            mark_experiment_force_removed(job_id)
+            kill_report = force_kill_experiment(job_id)
+            with JOBS_LOCK:
+                if job_id in JOBS:
+                    del JOBS[job_id]
+                    _save_jobs_to_disk_locked()
+            return {"status": "ok", "job_id": job_id, "terminated": True, "kill_report": kill_report}
+        if status == "queued":
+            with JOBS_LOCK:
+                if job_id in JOBS:
+                    del JOBS[job_id]
+                    _save_jobs_to_disk_locked()
+            return {"status": "ok", "job_id": job_id, "terminated": False, "message": "Queued job removed (no Ray actors were started yet)."}
+        if status in {"completed", "failed", "cancelled"}:
+            with JOBS_LOCK:
+                if job_id in JOBS:
+                    del JOBS[job_id]
+                    _save_jobs_to_disk_locked()
+            return {"status": "ok", "job_id": job_id}
+        return {"status": "error", "error": f"Cannot force-delete job in status: {status}"}
+
+    with JOBS_LOCK:
+        payload = JOBS.get(job_id)
+        if not payload:
+            return {"status": "not_found"}
+        status = str(payload.get("status", ""))
+        if status not in {"completed", "failed", "cancelled"}:
+            return {
+                "status": "error",
+                "error": "Only completed/failed/cancelled jobs can be deleted without force. For running or queued jobs, use delete with force=1 (Stop button in the UI).",
+            }
         del JOBS[job_id]
         _save_jobs_to_disk_locked()
     return {"status": "ok", "job_id": job_id}
@@ -1684,7 +1772,11 @@ def delete_experiment(job_id: str) -> Dict[str, str]:
 @app.delete("/experiments")
 def delete_finished_experiments() -> Dict[str, int | str]:
     with JOBS_LOCK:
-        removable = [jid for jid, payload in JOBS.items() if str(payload.get("status", "")) in {"completed", "failed"}]
+        removable = [
+            jid
+            for jid, payload in JOBS.items()
+            if str(payload.get("status", "")) in {"completed", "failed", "cancelled"}
+        ]
         for jid in removable:
             del JOBS[jid]
         _save_jobs_to_disk_locked()
