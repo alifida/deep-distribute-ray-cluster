@@ -55,6 +55,26 @@ JOBS_LOCK = Lock()
 JOBS_DB_PATH = os.path.join(os.path.dirname(__file__), "new_updates", "jobs_history.json")
 
 
+def _ensure_ray_connected() -> tuple[bool, str]:
+    try:
+        import ray
+
+        if not ray.is_initialized():
+            ray.init(address="auto", ignore_reinit_error=True)
+            return True, ""
+
+        # If initialized session is stale, force reconnect so dashboard can recover.
+        nodes = ray.nodes()
+        alive_nodes = [n for n in nodes if bool(n.get("Alive", False))]
+        if alive_nodes:
+            return True, ""
+        ray.shutdown()
+        ray.init(address="auto", ignore_reinit_error=True)
+        return True, ""
+    except Exception as exc:
+        return False, str(exc)
+
+
 def _load_jobs_from_disk() -> Dict[str, Dict]:
     try:
         if not os.path.exists(JOBS_DB_PATH):
@@ -278,12 +298,9 @@ def health() -> Dict[str, str]:
 def cluster_resources() -> Dict:
     try:
         import ray
-
-        if not ray.is_initialized():
-            try:
-                ray.init(address="auto", ignore_reinit_error=True)
-            except Exception:
-                return {"status": "not_connected", "resources": {}}
+        ok, err = _ensure_ray_connected()
+        if not ok:
+            return {"status": "not_connected", "error": err, "resources": {}}
         return {"status": "ok", "resources": ray.available_resources()}
     except Exception as exc:
         return {"status": "error", "error": str(exc), "resources": {}}
@@ -293,12 +310,9 @@ def cluster_resources() -> Dict:
 def cluster_nodes() -> Dict:
     try:
         import ray
-
-        if not ray.is_initialized():
-            try:
-                ray.init(address="auto", ignore_reinit_error=True)
-            except Exception:
-                return {"status": "not_connected", "nodes": []}
+        ok, err = _ensure_ray_connected()
+        if not ok:
+            return {"status": "not_connected", "error": err, "nodes": []}
 
         out = []
         for n in ray.nodes():
