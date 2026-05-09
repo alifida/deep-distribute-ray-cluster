@@ -222,8 +222,8 @@ $env:NUM_GPUS=1
 - If PowerShell blocks scripts, run once as admin:
   - `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
 - Use Python Launcher (`py -3`) or a Python 3 install in PATH.
-- Recommended Python on Windows for Ray: **3.10 or 3.11**.
-- `scripts/setup_node.ps1` now automatically prefers Python **3.11**, then **3.10**.
+- Recommended Python on Windows for Ray: **3.12** (preferred), then **3.11** or **3.10**.
+- `scripts/setup_node.ps1` now automatically prefers Python **3.12**, then **3.11**, then **3.10**.
 - Keep project path consistent on all nodes where possible.
 
 ### Optional `.bat` wrappers (double-click / cmd-friendly)

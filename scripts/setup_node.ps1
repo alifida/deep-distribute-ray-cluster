@@ -18,7 +18,7 @@ if (Test-Path $VenvPython) {
     try {
         $prefix = & $VenvPython -c "import sys; print(sys.prefix)"
         $pyMm = & $VenvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
-        $supported = @("3.10", "3.11") -contains $pyMm.Trim()
+        $supported = @("3.10", "3.11", "3.12") -contains $pyMm.Trim()
         if ($prefix.Trim() -ne $VenvDir -or -not $supported) {
             Write-Host "[setup] existing .venv points to old path, recreating..."
             if (-not $supported) {
@@ -34,7 +34,7 @@ if (Test-Path $VenvPython) {
 
 if (-not (Test-Path $VenvPython)) {
     $created = $false
-    foreach ($spec in @("-3.11", "-3.10")) {
+    foreach ($spec in @("-3.12", "-3.11", "-3.10")) {
         try {
             Invoke-Checked "py $spec -m venv `"$VenvDir`""
             $created = $true
@@ -45,7 +45,7 @@ if (-not (Test-Path $VenvPython)) {
         }
     }
     if (-not $created) {
-        throw "[setup] Could not create venv with Python 3.11/3.10. Install Python 3.11 (recommended) and ensure py launcher is available."
+        throw "[setup] Could not create venv with Python 3.12/3.11/3.10. Install Python 3.12 (recommended) and ensure py launcher is available."
     }
 }
 
@@ -55,7 +55,7 @@ Invoke-Checked "`"$VenvPython`" -m pip install -r `"$((Join-Path $ProjectDir "re
 & $VenvPython -c "import ray" 2>$null
 if ($LASTEXITCODE -ne 0) {
     $pyVer = & $VenvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"
-    throw "[setup] Ray import failed after install. Python version: $pyVer. Ray wheels on Windows may not be available for this Python version. Use Python 3.10 or 3.11 and rerun setup."
+    throw "[setup] Ray import failed after install. Python version: $pyVer. Ray wheels on Windows may not be available for this Python version. Use Python 3.12 (recommended), 3.11, or 3.10 and rerun setup."
 }
 
 Write-Host "[setup] done"

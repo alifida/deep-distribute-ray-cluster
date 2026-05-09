@@ -37,7 +37,7 @@ if (-not (Test-Path $VenvPython)) {
 try {
     $prefix = & $VenvPython -c "import sys; print(sys.prefix)"
     $pyMm = & $VenvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
-    $supported = @("3.10", "3.11") -contains $pyMm.Trim()
+    $supported = @("3.10", "3.11", "3.12") -contains $pyMm.Trim()
     if ($prefix.Trim() -ne $VenvDir -or -not $supported) {
         Write-Host "[worker] stale/unsupported .venv detected, running setup_node.ps1..."
         & (Join-Path $PSScriptRoot "setup_node.ps1")
@@ -52,11 +52,11 @@ if (-not (Test-RayImport -PythonExe $VenvPython)) {
     & $VenvPython -m pip install ray
     if ($LASTEXITCODE -ne 0) {
         $pyVer = & $VenvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"
-        throw "[worker] Failed to install ray. Python version: $pyVer. Use Python 3.10 or 3.11 on Windows and rerun setup_node.ps1."
+        throw "[worker] Failed to install ray. Python version: $pyVer. Use Python 3.12 (recommended), 3.11, or 3.10 on Windows and rerun setup_node.ps1."
     }
     if (-not (Test-RayImport -PythonExe $VenvPython)) {
         $pyVer = & $VenvPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"
-        throw "[worker] Ray import still failing. Python version: $pyVer. Use Python 3.10 or 3.11 and rerun setup."
+        throw "[worker] Ray import still failing. Python version: $pyVer. Use Python 3.12 (recommended), 3.11, or 3.10 and rerun setup."
     }
 }
 
