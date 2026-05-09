@@ -147,6 +147,7 @@ def _run_job(job_id: str, request: ExperimentRequest, strategy_type: str = "cust
     try:
         runner: Callable = _experiment_runner()
         cfg = _build_config(_apply_strategy_to_request(request, strategy_type))
+        setattr(cfg, "run_id", job_id)
         result = runner(cfg)
         with JOBS_LOCK:
             JOBS[job_id]["status"] = "completed"
@@ -755,6 +756,16 @@ def ui() -> str:
         <pre id="pair_compare_details">Raw comparison payload will appear here.</pre>
       </div>
 
+      <div class="card" id="worker_logs_card" style="display:none;">
+        <h3>Live Worker Logs</h3>
+        <div class="small">Use the running-job logs button (📡) to stream active worker logs.</div>
+        <div style="margin:8px 0;">
+          <button onclick="refreshLiveLogsNow()">Refresh Live Logs</button>
+          <span id="worker_logs_msg" class="small"></span>
+        </div>
+        <pre id="worker_logs_view">No live logs selected.</pre>
+      </div>
+
       <div class="card" id="job_details_card" style="display:none;">
         <h3>Job Details</h3>
         <pre id="job_details">Select a job to see details...</pre>
@@ -932,6 +943,8 @@ def ui() -> str:
     let pairCommChart = null;
     let selectedPlainJobId = null;
     let selectedCustomJobId = null;
+    let liveLogsJobId = null;
+    let liveLogsPoller = null;
 
     function setCardVisible(id, visible) {
       const el = document.getElementById(id);
@@ -1023,6 +1036,8 @@ def ui() -> str:
         let actionBtn = `<span class="small">-</span>`;
         if (status === "completed") {
           actionBtn = `<span class="action-icons"><button class="icon-btn" title="View job" aria-label="View job" onclick="viewJob('${jobId}')">👁</button><button class="icon-btn delete" title="Delete job" aria-label="Delete job" onclick="deleteJob('${jobId}')">🗑</button></span>`;
+        } else if (status === "running") {
+          actionBtn = `<span class="action-icons"><button class="icon-btn" title="Live worker logs" aria-label="Live worker logs" onclick="viewLiveLogs('${jobId}')">📡</button></span>`;
         } else if (status === "failed") {
           actionBtn = `<span class="action-icons"><button class="icon-btn delete" title="Delete job" aria-label="Delete job" onclick="deleteJob('${jobId}')">🗑</button></span>`;
         }
@@ -1265,6 +1280,47 @@ def ui() -> str:
       renderSummary(data);
       renderCharts(data);
       renderAblation(data);
+    }
+
+    async function refreshLiveLogsNow() {
+      if (!liveLogsJobId) return;
+      const msg = document.getElementById("worker_logs_msg");
+      const out = document.getElementById("worker_logs_view");
+      try {
+        const data = await safeFetch(`/experiments/${liveLogsJobId}/live-logs`);
+        if (data.status !== "ok") {
+          msg.textContent = data.message || "No live logs available.";
+          if (data.status === "not_running" && liveLogsPoller) {
+            clearInterval(liveLogsPoller);
+            liveLogsPoller = null;
+          }
+          return;
+        }
+        msg.textContent = `Live stream for ${liveLogsJobId} (${(data.workers || []).length} workers)`;
+        const lines = [];
+        (data.workers || []).forEach((w) => {
+          const hdr = `${w.worker_id || "unknown"} | ${w.node_ip || "-"} | ${w.hostname || "-"} | pid=${w.pid || "-"}`;
+          lines.push(hdr);
+          if (w.error) {
+            lines.push(`ERROR: ${w.error}`);
+          } else {
+            (w.logs || []).forEach((ln) => lines.push("  " + ln));
+          }
+          lines.push("");
+        });
+        out.textContent = lines.join("\n") || "No worker logs yet.";
+      } catch (e) {
+        msg.textContent = "Failed to load logs: " + e.message;
+      }
+    }
+
+    async function viewLiveLogs(jobId) {
+      liveLogsJobId = jobId;
+      setCardVisible("worker_logs_card", true);
+      document.getElementById("worker_logs_view").textContent = `Loading live logs for ${jobId}...`;
+      await refreshLiveLogsNow();
+      if (liveLogsPoller) clearInterval(liveLogsPoller);
+      liveLogsPoller = setInterval(refreshLiveLogsNow, 3000);
     }
 
     function clearAblationView(message = "No ablation result selected.") {
@@ -1543,6 +1599,20 @@ def start_research_pack(request: ExperimentRequest, background_tasks: Background
 def get_experiment(job_id: str) -> Dict:
     with JOBS_LOCK:
         return JOBS.get(job_id, {"status": "not_found"})
+
+
+@app.get("/experiments/{job_id}/live-logs")
+def get_experiment_live_logs(job_id: str) -> Dict:
+    with JOBS_LOCK:
+        payload = JOBS.get(job_id)
+        if not payload:
+            return {"status": "not_found"}
+        status = str(payload.get("status", ""))
+    if status != "running":
+        return {"status": "not_running", "workers": [], "message": "Live logs are only available for running jobs."}
+    from ray_ps_async.runner import get_live_worker_logs
+
+    return get_live_worker_logs(job_id, limit=120)
 
 
 @app.get("/experiments")

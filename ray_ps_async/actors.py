@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+import os
+import socket
 import time
 from typing import Dict, List, Tuple
 
@@ -230,6 +232,26 @@ class Worker:
         self.adaptive_sync = bool(getattr(config, "adaptive_sync", True))
         self.stale_hits = 0
         self.pending_pushed_weights: tuple[list[list[float]], list[tuple[int, ...]], int] | None = None
+        self.node_ip = ray.util.get_node_ip_address()
+        self.hostname = socket.gethostname()
+        self.pid = os.getpid()
+        self.recent_logs: list[str] = []
+
+    def _log(self, msg: str) -> None:
+        stamp = time.strftime("%H:%M:%S")
+        self.recent_logs.append(f"[{stamp}] {self.worker_id}@{self.node_ip}: {msg}")
+        if len(self.recent_logs) > 300:
+            self.recent_logs = self.recent_logs[-300:]
+
+    def get_recent_logs(self, limit: int = 80) -> dict:
+        return {
+            "worker_id": self.worker_id,
+            "node_ip": self.node_ip,
+            "hostname": self.hostname,
+            "pid": self.pid,
+            "local_steps": self.local_steps,
+            "logs": self.recent_logs[-max(1, int(limit)):],
+        }
 
     def push_weights(self, lists: list[list[float]], shapes: list[tuple[int, ...]], version: int) -> dict:
         # PS push-first path: enqueue latest global snapshot for immediate apply in train loop.
@@ -273,6 +295,7 @@ class Worker:
         reg = ray.get(ps.register_worker.remote(self.worker_id))
         self.model.set_weights(lists_to_weights(reg["weights"], reg["shapes"]))
         local_version = int(reg.get("version", 0))
+        self._log(f"training start (version={local_version})")
 
         sync_n = max(1, int(self.config.sync_every_examples))
         if str(self.config.data_mode).lower() == "stream_from_head":
@@ -324,6 +347,7 @@ class Worker:
                     local_version = int(reply.get("version", local_version))
                     self.last_sent_full_gradient = None
                     self.stale_hits += 1
+                    self._log("stale update rejected by PS; resync applied")
                     if self.adaptive_sync:
                         sync_n = min(sync_n + 1, max(1, int(self.config.batch_size)))
                     continue
@@ -333,6 +357,16 @@ class Worker:
                     sync_n = max(1, sync_n - 1)
                 self.stale_hits = 0
                 self.local_steps += 1
+                if self.local_steps % 5 == 0:
+                    self._log(f"progress steps={self.local_steps} version={local_version}")
 
-        return {"worker_id": self.worker_id, "steps": self.local_steps, "samples_seen": part_size * int(self.config.epochs)}
+        self._log(f"training completed steps={self.local_steps}")
+        return {
+            "worker_id": self.worker_id,
+            "steps": self.local_steps,
+            "samples_seen": part_size * int(self.config.epochs),
+            "node_ip": self.node_ip,
+            "hostname": self.hostname,
+            "pid": self.pid,
+        }
 

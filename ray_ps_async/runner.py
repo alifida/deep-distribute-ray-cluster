@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from threading import Lock
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -13,6 +14,39 @@ from ray_ps_async.config import ExperimentConfig
 from ray_ps_async.data import DatasetBundle, load_batch, prepare_dataset
 from ray_ps_async.models import build_model
 from ray_ps_async.serialization import lists_to_weights
+
+
+RUNNING_EXPERIMENTS: dict[str, dict] = {}
+RUNNING_EXPERIMENTS_LOCK = Lock()
+
+
+def register_running_experiment(run_id: str, workers: List[ray.actor.ActorHandle], worker_ids: List[str]) -> None:
+    if not run_id:
+        return
+    with RUNNING_EXPERIMENTS_LOCK:
+        RUNNING_EXPERIMENTS[run_id] = {"workers": workers, "worker_ids": worker_ids}
+
+
+def unregister_running_experiment(run_id: str) -> None:
+    if not run_id:
+        return
+    with RUNNING_EXPERIMENTS_LOCK:
+        RUNNING_EXPERIMENTS.pop(run_id, None)
+
+
+def get_live_worker_logs(run_id: str, limit: int = 80) -> dict:
+    with RUNNING_EXPERIMENTS_LOCK:
+        entry = RUNNING_EXPERIMENTS.get(run_id)
+    if not entry:
+        return {"status": "not_running", "workers": []}
+    out = []
+    for handle, wid in zip(entry.get("workers", []), entry.get("worker_ids", [])):
+        try:
+            payload = ray.get(handle.get_recent_logs.remote(limit), timeout=2)
+            out.append(payload)
+        except Exception as exc:
+            out.append({"worker_id": wid, "error": str(exc), "logs": []})
+    return {"status": "ok", "workers": out}
 
 
 def _evaluate(model: tf.keras.Model, samples: List[Tuple[str, int]], image_size: Tuple[int, int], batch_size: int) -> Dict[str, float]:
@@ -71,6 +105,8 @@ def run_experiment(config: ExperimentConfig) -> Dict:
     if str(config.ps_optimizer).lower() != "sgd" and float(config.ps_momentum) != 0.9:
         warnings.append("ps_momentum is only used with ps_optimizer=sgd.")
 
+    run_id = str(getattr(config, "run_id", "") or "")
+
     def _run_attempt(worker_gpu: float, data_mode: str):
         ps_opts = {"num_gpus": 1 if config.use_gpu_on_ps and worker_gpu > 0 else 0}
         ps = ParameterServer.options(**ps_opts).remote(config)
@@ -89,6 +125,7 @@ def run_experiment(config: ExperimentConfig) -> Dict:
 
         # Register worker handles in PS for push-first propagation after each committed round.
         ray.get(ps.set_worker_handles.remote(worker_ids, workers))
+        register_running_experiment(run_id, workers, worker_ids)
 
         worker_results_local = ray.get([w.train.remote(ps, dataset_server) for w in workers])
         global_state_local = ray.get(ps.get_global_weights.remote())
@@ -104,55 +141,58 @@ def run_experiment(config: ExperimentConfig) -> Dict:
     fallback_reason = None
 
     try:
-        worker_results, global_state, comm_metrics = _run_attempt(final_gpu_per_worker, final_data_mode)
-        attempts.append({"worker_gpu": final_gpu_per_worker, "data_mode": final_data_mode, "status": "ok"})
-    except Exception as first_exc:
-        attempts.append({"worker_gpu": final_gpu_per_worker, "data_mode": final_data_mode, "status": "failed", "error": str(first_exc)})
-        if not config.allow_gpu_fallback:
-            raise
-        fallback_reason = str(first_exc)
-
-        # First rescue: force CPU, keep same data mode.
-        final_gpu_per_worker = 0.0
         try:
             worker_results, global_state, comm_metrics = _run_attempt(final_gpu_per_worker, final_data_mode)
             attempts.append({"worker_gpu": final_gpu_per_worker, "data_mode": final_data_mode, "status": "ok"})
-            gpu_fallback_applied = True
-        except Exception as second_exc:
-            attempts.append({"worker_gpu": final_gpu_per_worker, "data_mode": final_data_mode, "status": "failed", "error": str(second_exc)})
-            # Second rescue: force CPU + shared_path for maximum compatibility.
-            final_data_mode = "shared_path"
-            worker_results, global_state, comm_metrics = _run_attempt(final_gpu_per_worker, final_data_mode)
-            attempts.append({"worker_gpu": final_gpu_per_worker, "data_mode": final_data_mode, "status": "ok"})
-            gpu_fallback_applied = True
+        except Exception as first_exc:
+            attempts.append({"worker_gpu": final_gpu_per_worker, "data_mode": final_data_mode, "status": "failed", "error": str(first_exc)})
+            if not config.allow_gpu_fallback:
+                raise
+            fallback_reason = str(first_exc)
 
-    model = build_model(config.model_name, (config.image_size[0], config.image_size[1], 3))
-    model.set_weights(lists_to_weights(global_state["weights"], global_state["shapes"]))
+            # First rescue: force CPU, keep same data mode.
+            final_gpu_per_worker = 0.0
+            try:
+                worker_results, global_state, comm_metrics = _run_attempt(final_gpu_per_worker, final_data_mode)
+                attempts.append({"worker_gpu": final_gpu_per_worker, "data_mode": final_data_mode, "status": "ok"})
+                gpu_fallback_applied = True
+            except Exception as second_exc:
+                attempts.append({"worker_gpu": final_gpu_per_worker, "data_mode": final_data_mode, "status": "failed", "error": str(second_exc)})
+                # Second rescue: force CPU + shared_path for maximum compatibility.
+                final_data_mode = "shared_path"
+                worker_results, global_state, comm_metrics = _run_attempt(final_gpu_per_worker, final_data_mode)
+                attempts.append({"worker_gpu": final_gpu_per_worker, "data_mode": final_data_mode, "status": "ok"})
+                gpu_fallback_applied = True
 
-    val_metrics = _evaluate(model, data.val_data, config.image_size, config.batch_size)
-    test_metrics = _evaluate(model, data.test_data, config.image_size, config.batch_size)
+        model = build_model(config.model_name, (config.image_size[0], config.image_size[1], 3))
+        model.set_weights(lists_to_weights(global_state["weights"], global_state["shapes"]))
 
-    return {
-        "config": config.__dict__,
-        "ray_resources": ray.available_resources(),
-        "execution": {
-            "effective_num_gpus_per_worker": final_gpu_per_worker,
-            "gpu_fallback_applied": gpu_fallback_applied,
-            "data_mode": final_data_mode,
-            "fallback_reason": fallback_reason,
-            "attempts": attempts,
-            "warnings": warnings,
-        },
-        "workers": worker_results,
-        "validation_metrics": val_metrics,
-        "test_metrics": test_metrics,
-        "communication_cost": comm_metrics,
-        "dataset_stats": {
-            "num_workers": config.num_workers,
-            "train_partition_sizes": {str(k): len(v) for k, v in data.train_partitions.items()},
-            "val_samples": len(data.val_data),
-            "test_samples": len(data.test_data),
-            "classes": data.class_names,
-        },
-    }
+        val_metrics = _evaluate(model, data.val_data, config.image_size, config.batch_size)
+        test_metrics = _evaluate(model, data.test_data, config.image_size, config.batch_size)
+
+        return {
+            "config": config.__dict__,
+            "ray_resources": ray.available_resources(),
+            "execution": {
+                "effective_num_gpus_per_worker": final_gpu_per_worker,
+                "gpu_fallback_applied": gpu_fallback_applied,
+                "data_mode": final_data_mode,
+                "fallback_reason": fallback_reason,
+                "attempts": attempts,
+                "warnings": warnings,
+            },
+            "workers": worker_results,
+            "validation_metrics": val_metrics,
+            "test_metrics": test_metrics,
+            "communication_cost": comm_metrics,
+            "dataset_stats": {
+                "num_workers": config.num_workers,
+                "train_partition_sizes": {str(k): len(v) for k, v in data.train_partitions.items()},
+                "val_samples": len(data.val_data),
+                "test_samples": len(data.test_data),
+                "classes": data.class_names,
+            },
+        }
+    finally:
+        unregister_running_experiment(run_id)
 
