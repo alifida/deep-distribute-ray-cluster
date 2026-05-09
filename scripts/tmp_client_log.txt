@@ -1,18 +1,15 @@
+
 E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts>start_worker.bat
-  File "<string>", line 1
-    import
-          ^
-SyntaxError: Expected one or more names after 'import'
-[worker] ray not found in venv, installing ray...
-ERROR: Could not find a version that satisfies the requirement ray (from versions: none)
-ERROR: No matching distribution found for ray
-[worker] Failed to install ray. Python version: 3.13.1. Use Python 3.10 or 3.11 on Windows and rerun setup_node.ps1.
-At E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts\start_worker.ps1:49 char:9
-+         throw "[worker] Failed to install ray. Python version: $pyVer ...
-+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : OperationStopped: ([worker] Failed...setup_node.ps1.:String) [], RuntimeException
-    + FullyQualifiedErrorId : [worker] Failed to install ray. Python version: 3.13.1. Use Python 3.10 or 3.11 on Windo
-   ws and rerun setup_node.ps1.
+[worker] stale/unsupported .venv detected, running setup_node.ps1...
+[worker] .venv validation failed, running setup_node.ps1...
+E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts\start_worker.ps1 : At
+E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts\setup_node.ps1:11 char:46
++         throw "Command failed with exit code $LASTEXITCODE: $CommandL ...
++                                              ~~~~~~~~~~~~~~
+Variable reference is not valid. ':' was not followed by a valid variable name character. Consider using ${} to
+delimit the name.
+    + CategoryInfo          : ParserError: (:) [start_worker.ps1], ParseException
+    + FullyQualifiedErrorId : InvalidVariableReferenceWithDrive,start_worker.ps1
 
 
 [start_worker.bat] FAILED with exit code 1.

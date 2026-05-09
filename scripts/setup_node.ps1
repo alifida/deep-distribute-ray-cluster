@@ -8,7 +8,7 @@ function Invoke-Checked {
     param([Parameter(Mandatory = $true)][string]$CommandLine)
     Invoke-Expression $CommandLine
     if ($LASTEXITCODE -ne 0) {
-        throw "Command failed with exit code $LASTEXITCODE: $CommandLine"
+        throw "Command failed with exit code ${LASTEXITCODE}: $CommandLine"
     }
 }
 
