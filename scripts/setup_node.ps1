@@ -5,10 +5,14 @@ $VenvDir = Join-Path $ProjectDir ".venv"
 $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
 
 function Invoke-Checked {
-    param([Parameter(Mandatory = $true)][string]$CommandLine)
-    Invoke-Expression $CommandLine
+    param(
+        [Parameter(Mandatory = $true)][string]$Exe,
+        [Parameter(Mandatory = $true)][string[]]$Args
+    )
+    & $Exe @Args
     if ($LASTEXITCODE -ne 0) {
-        throw "Command failed with exit code ${LASTEXITCODE}: $CommandLine"
+        $argText = ($Args -join " ")
+        throw "Command failed with exit code ${LASTEXITCODE}: $Exe $argText"
     }
 }
 
@@ -36,7 +40,7 @@ if (-not (Test-Path $VenvPython)) {
     $created = $false
     foreach ($spec in @("-3.12", "-3.11", "-3.10")) {
         try {
-            Invoke-Checked "py $spec -m venv `"$VenvDir`""
+            Invoke-Checked -Exe "py" -Args @($spec, "-m", "venv", $VenvDir)
             $created = $true
             Write-Host "[setup] created venv with Python $spec"
             break
@@ -49,8 +53,8 @@ if (-not (Test-Path $VenvPython)) {
     }
 }
 
-Invoke-Checked "`"$VenvPython`" -m pip install --upgrade pip"
-Invoke-Checked "`"$VenvPython`" -m pip install -r `"$((Join-Path $ProjectDir "requirements.txt"))`""
+Invoke-Checked -Exe $VenvPython -Args @("-m", "pip", "install", "--upgrade", "pip")
+Invoke-Checked -Exe $VenvPython -Args @("-m", "pip", "install", "-r", (Join-Path $ProjectDir "requirements.txt"))
 
 & $VenvPython -c "import ray" 2>$null
 if ($LASTEXITCODE -ne 0) {

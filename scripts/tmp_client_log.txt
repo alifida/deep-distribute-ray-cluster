@@ -1,38 +1,40 @@
 
 E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts>start_worker.bat
-[worker] stale/unsupported .venv detected, running setup_node.ps1...
+[worker] .venv missing, running setup_node.ps1...
 [setup] project: E:\workspace\windows\phd\deep-distribute-ray-cluster
-[setup] existing .venv points to old path, recreating...
-[setup] existing .venv python version (3.13) is not supported for Ray on Windows, recreating...
-No suitable Python runtime found
-Pass --list (-0) to see all detected environments on your machine
-or set environment variable PYLAUNCHER_ALLOW_INSTALL to use winget
-or open the Microsoft Store to the requested version.
-No suitable Python runtime found
-Pass --list (-0) to see all detected environments on your machine
-or set environment variable PYLAUNCHER_ALLOW_INSTALL to use winget
-or open the Microsoft Store to the requested version.
-[worker] .venv validation failed, running setup_node.ps1...
-[setup] project: E:\workspace\windows\phd\deep-distribute-ray-cluster
-No suitable Python runtime found
-Pass --list (-0) to see all detected environments on your machine
-or set environment variable PYLAUNCHER_ALLOW_INSTALL to use winget
-or open the Microsoft Store to the requested version.
-No suitable Python runtime found
-Pass --list (-0) to see all detected environments on your machine
-or set environment variable PYLAUNCHER_ALLOW_INSTALL to use winget
-or open the Microsoft Store to the requested version.
-[setup] Could not create venv with Python 3.11/3.10. Install Python 3.11 (recommended) and ensure py launcher is
-available.
-At E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts\setup_node.ps1:48 char:9
-+         throw "[setup] Could not create venv with Python 3.11/3.10. I ...
-+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : OperationStopped: ([setup] Could n...r is available.:String) [], RuntimeException
-    + FullyQualifiedErrorId : [setup] Could not create venv with Python 3.11/3.10. Install Python 3.11 (recommended) a
-   nd ensure py launcher is available.
+[setup] created venv with Python -3.12
+Invoke-Expression : At line:1 char:81
++ ... \phd\deep-distribute-ray-cluster\.venv\Scripts\python.exe" -m pip ins ...
++                                                                ~~
+Unexpected token '-m' in expression or statement.
+At line:1 char:84
++ ... \deep-distribute-ray-cluster\.venv\Scripts\python.exe" -m pip install ...
++                                                               ~~~
+Unexpected token 'pip' in expression or statement.
+At E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts\setup_node.ps1:9 char:5
++     Invoke-Expression $CommandLine
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ParserError: (:) [Invoke-Expression], ParseException
+    + FullyQualifiedErrorId : UnexpectedToken,Microsoft.PowerShell.Commands.InvokeExpressionCommand
 
 
 [start_worker.bat] FAILED with exit code 1.
 Check HEAD_IP in scripts\cluster_config.env or pass HEAD_IP explicitly.
 Press any key to close this window...
+
+E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts>setup_node.bat
+[setup] project: E:\workspace\windows\phd\deep-distribute-ray-cluster
+Invoke-Expression : At line:1 char:81
++ ... \phd\deep-distribute-ray-cluster\.venv\Scripts\python.exe" -m pip ins ...
++                                                                ~~
+Unexpected token '-m' in expression or statement.
+At line:1 char:84
++ ... \deep-distribute-ray-cluster\.venv\Scripts\python.exe" -m pip install ...
++                                                               ~~~
+Unexpected token 'pip' in expression or statement.
+At E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts\setup_node.ps1:9 char:5
++     Invoke-Expression $CommandLine
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ParserError: (:) [Invoke-Expression], ParseException
+    + FullyQualifiedErrorId : UnexpectedToken,Microsoft.PowerShell.Commands.InvokeExpressionCommand
 
