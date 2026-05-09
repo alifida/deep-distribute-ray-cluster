@@ -1,13 +1,18 @@
 
-[setup] done
-[setup] activate with: .\.venv\Scripts\Activate.ps1
+
+E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts>stop_worker.bat
+[stop-worker] stopping Ray runtime
+Did not find any active Ray processes.
+[stop-worker] done
 
 E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts>start_worker.bat
-[worker] stopping old Ray runtime
-Did not find any active Ray processes.
-[worker] connecting to 192.168.18.99:6379
-Multi-node Ray clusters are not supported on Windows and OSX. Restart the Ray cluster with the environment variable `RAY_ENABLE_WINDOWS_OR_OSX_CLUSTER=1` to proceed anyway.
-[worker] started and joined cluster
+E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts\start_worker.ps1 : The term 'if' is not recognized as the
+name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was
+included, verify that the path is correct and try again.
+    + CategoryInfo          : ObjectNotFound: (if:String) [start_worker.ps1], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException,start_worker.ps1
 
-[start_worker.bat] Completed. If worker is not visible on head, verify firewall and HEAD_IP.
+
+[start_worker.bat] FAILED with exit code 1.
+Check HEAD_IP in scripts\cluster_config.env or pass HEAD_IP explicitly.
 Press any key to close this window...
