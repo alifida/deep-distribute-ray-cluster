@@ -32,6 +32,10 @@ DASHBOARD_AGENT_LISTEN_PORT="${DASHBOARD_AGENT_LISTEN_PORT:-10004}"
 METRICS_EXPORT_PORT="${METRICS_EXPORT_PORT:-10005}"
 MIN_WORKER_PORT="${MIN_WORKER_PORT:-11000}"
 MAX_WORKER_PORT="${MAX_WORKER_PORT:-11999}"
+RAY_TMPDIR="${RAY_TMPDIR:-${PROJECT_DIR}/.ray_tmp}"
+
+mkdir -p "${RAY_TMPDIR}"
+export RAY_TMPDIR
 
 if [[ "${RESTART_RAY}" == "1" ]]; then
   echo "[head] RESTART_RAY=1 -> stopping old Ray runtime"
@@ -46,6 +50,7 @@ else
 fi
 
 echo "[head] starting Ray head on port ${RAY_PORT}"
+echo "[head] ray temp dir: ${RAY_TMPDIR}"
 "${RAY_CMD[@]}" start \
   --head \
   --port="${RAY_PORT}" \

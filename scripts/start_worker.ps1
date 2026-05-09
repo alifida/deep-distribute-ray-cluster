@@ -84,12 +84,16 @@ $DashboardAgentPort = if ($env:WORKER_DASHBOARD_AGENT_LISTEN_PORT) { $env:WORKER
 $MetricsPort = if ($env:WORKER_METRICS_EXPORT_PORT) { $env:WORKER_METRICS_EXPORT_PORT } elseif ($env:METRICS_EXPORT_PORT) { $env:METRICS_EXPORT_PORT } else { "10015" }
 $MinWorkerPort = if ($env:WORKER_MIN_WORKER_PORT) { $env:WORKER_MIN_WORKER_PORT } elseif ($env:MIN_WORKER_PORT) { $env:MIN_WORKER_PORT } else { "12000" }
 $MaxWorkerPort = if ($env:WORKER_MAX_WORKER_PORT) { $env:WORKER_MAX_WORKER_PORT } elseif ($env:MAX_WORKER_PORT) { $env:MAX_WORKER_PORT } else { "12999" }
+$RayTmpDir = if ($env:RAY_TMPDIR) { $env:RAY_TMPDIR } else { (Join-Path $ProjectDir ".ray_tmp") }
+if (-not (Test-Path $RayTmpDir)) { New-Item -ItemType Directory -Path $RayTmpDir -Force | Out-Null }
+[Environment]::SetEnvironmentVariable("RAY_TMPDIR", $RayTmpDir, "Process")
 
 Write-Host "[worker] stopping old Ray runtime"
 & $VenvPython -m ray.scripts.scripts stop
 
 $HeadAddress = "{0}:{1}" -f $HeadIp, $HeadPort
 Write-Host ("[worker] connecting to {0}" -f $HeadAddress)
+Write-Host ("[worker] ray temp dir: {0}" -f $RayTmpDir)
 $rayOutput = & $VenvPython -m ray.scripts.scripts start `
   --address="$HeadAddress" `
   --node-manager-port="$NodeManagerPort" `

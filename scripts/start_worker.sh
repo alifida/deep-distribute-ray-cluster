@@ -38,11 +38,16 @@ DASHBOARD_AGENT_LISTEN_PORT="${WORKER_DASHBOARD_AGENT_LISTEN_PORT:-${DASHBOARD_A
 METRICS_EXPORT_PORT="${WORKER_METRICS_EXPORT_PORT:-${METRICS_EXPORT_PORT:-10015}}"
 MIN_WORKER_PORT="${WORKER_MIN_WORKER_PORT:-${MIN_WORKER_PORT:-12000}}"
 MAX_WORKER_PORT="${WORKER_MAX_WORKER_PORT:-${MAX_WORKER_PORT:-12999}}"
+RAY_TMPDIR="${RAY_TMPDIR:-${PROJECT_DIR}/.ray_tmp}"
+
+mkdir -p "${RAY_TMPDIR}"
+export RAY_TMPDIR
 
 echo "[worker] stopping old Ray runtime"
 "${RAY_CMD[@]}" stop || true
 
 echo "[worker] connecting to ${HEAD_IP}:${HEAD_PORT}"
+echo "[worker] ray temp dir: ${RAY_TMPDIR}"
 "${RAY_CMD[@]}" start \
   --address="${HEAD_IP}:${HEAD_PORT}" \
   --node-manager-port="${NODE_MANAGER_PORT}" \

@@ -49,6 +49,9 @@ $DashboardAgentPort = if ($env:DASHBOARD_AGENT_LISTEN_PORT) { $env:DASHBOARD_AGE
 $MetricsPort = if ($env:METRICS_EXPORT_PORT) { $env:METRICS_EXPORT_PORT } else { "10005" }
 $MinWorkerPort = if ($env:MIN_WORKER_PORT) { $env:MIN_WORKER_PORT } else { "11000" }
 $MaxWorkerPort = if ($env:MAX_WORKER_PORT) { $env:MAX_WORKER_PORT } else { "11999" }
+$RayTmpDir = if ($env:RAY_TMPDIR) { $env:RAY_TMPDIR } else { (Join-Path $ProjectDir ".ray_tmp") }
+if (-not (Test-Path $RayTmpDir)) { New-Item -ItemType Directory -Path $RayTmpDir -Force | Out-Null }
+[Environment]::SetEnvironmentVariable("RAY_TMPDIR", $RayTmpDir, "Process")
 
 if ($RestartRay -eq "1") {
     Write-Host "[head] RESTART_RAY=1 -> stopping old Ray runtime"
@@ -64,6 +67,7 @@ if ($RestartRay -eq "1") {
 }
 
 Write-Host "[head] starting Ray head on port $RayPort"
+Write-Host "[head] ray temp dir: $RayTmpDir"
 & $VenvPython -m ray.scripts.scripts start `
   --head `
   --port="$RayPort" `
