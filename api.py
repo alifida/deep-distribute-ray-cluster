@@ -492,8 +492,8 @@ def ui() -> str:
     }
     .card.collapsed .accordion-content { display: none; }
     .top-grid { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 10px; margin-bottom: 12px; }
-    .main-two-col { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 12px; align-items: start; }
-    .left-panel, .right-panel { display: flex; flex-direction: column; gap: 10px; }
+    .main-two-col { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: 12px; align-items: start; }
+    .left-panel, .right-panel { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
     .row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
     .field { display: flex; flex-direction: column; min-width: 180px; }
     .field-group-card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; margin-bottom: 10px; background: #fafcff; }
@@ -533,8 +533,19 @@ def ui() -> str:
     .pill-running { background: #fff7ed; color: #b45309; }
     .pill-completed { background: #ecfdf5; color: #166534; }
     .pill-failed { background: #fef2f2; color: #b91c1c; }
-    .charts { display: grid; grid-template-columns: repeat(auto-fit,minmax(320px,1fr)); gap: 12px; }
-    canvas { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; max-height: 180px; }
+    .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; }
+    .charts > div { min-width: 0; }
+    canvas {
+      display: block;
+      width: 100% !important;
+      max-width: 100%;
+      box-sizing: border-box;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 8px;
+      max-height: 160px;
+    }
     .small { font-size: 12px; color: #555; }
     .label-wrap { display: flex; align-items: center; gap: 6px; }
     .hint {
@@ -576,6 +587,16 @@ def ui() -> str:
     .conn-ok { background: #ecfdf5; color: #166534; border: 1px solid #86efac; }
     .conn-warn { background: #fff7ed; color: #9a3412; border: 1px solid #fdba74; }
     .conn-bad { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
+    @media (max-width: 1200px) {
+      .main-two-col { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 900px) {
+      .top-grid { grid-template-columns: 1fr 1fr; }
+      .charts { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .top-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
