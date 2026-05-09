@@ -9,6 +9,7 @@ if [[ -f "${CONFIG_FILE}" ]]; then
   source "${CONFIG_FILE}"
   set +a
 fi
+export RAY_ENABLE_WINDOWS_OR_OSX_CLUSTER="${RAY_ENABLE_WINDOWS_OR_OSX_CLUSTER:-0}"
 VENV_DIR="${PROJECT_DIR}/.venv"
 if [[ ! -x "${VENV_DIR}/bin/python" ]] || [[ "$("${VENV_DIR}/bin/python" -c 'import sys; print(sys.prefix)' 2>/dev/null || true)" != "${VENV_DIR}" ]]; then
   echo "[head] .venv missing or stale, running setup_node.sh..."

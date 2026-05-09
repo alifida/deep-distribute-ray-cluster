@@ -1,40 +1,13 @@
 
+[setup] done
+[setup] activate with: .\.venv\Scripts\Activate.ps1
+
 E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts>start_worker.bat
-[worker] .venv missing, running setup_node.ps1...
-[setup] project: E:\workspace\windows\phd\deep-distribute-ray-cluster
-[setup] created venv with Python -3.12
-Invoke-Expression : At line:1 char:81
-+ ... \phd\deep-distribute-ray-cluster\.venv\Scripts\python.exe" -m pip ins ...
-+                                                                ~~
-Unexpected token '-m' in expression or statement.
-At line:1 char:84
-+ ... \deep-distribute-ray-cluster\.venv\Scripts\python.exe" -m pip install ...
-+                                                               ~~~
-Unexpected token 'pip' in expression or statement.
-At E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts\setup_node.ps1:9 char:5
-+     Invoke-Expression $CommandLine
-+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : ParserError: (:) [Invoke-Expression], ParseException
-    + FullyQualifiedErrorId : UnexpectedToken,Microsoft.PowerShell.Commands.InvokeExpressionCommand
+[worker] stopping old Ray runtime
+Did not find any active Ray processes.
+[worker] connecting to 192.168.18.99:6379
+Multi-node Ray clusters are not supported on Windows and OSX. Restart the Ray cluster with the environment variable `RAY_ENABLE_WINDOWS_OR_OSX_CLUSTER=1` to proceed anyway.
+[worker] started and joined cluster
 
-
-[start_worker.bat] FAILED with exit code 1.
-Check HEAD_IP in scripts\cluster_config.env or pass HEAD_IP explicitly.
+[start_worker.bat] Completed. If worker is not visible on head, verify firewall and HEAD_IP.
 Press any key to close this window...
-
-E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts>setup_node.bat
-[setup] project: E:\workspace\windows\phd\deep-distribute-ray-cluster
-Invoke-Expression : At line:1 char:81
-+ ... \phd\deep-distribute-ray-cluster\.venv\Scripts\python.exe" -m pip ins ...
-+                                                                ~~
-Unexpected token '-m' in expression or statement.
-At line:1 char:84
-+ ... \deep-distribute-ray-cluster\.venv\Scripts\python.exe" -m pip install ...
-+                                                               ~~~
-Unexpected token 'pip' in expression or statement.
-At E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts\setup_node.ps1:9 char:5
-+     Invoke-Expression $CommandLine
-+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : ParserError: (:) [Invoke-Expression], ParseException
-    + FullyQualifiedErrorId : UnexpectedToken,Microsoft.PowerShell.Commands.InvokeExpressionCommand
-

@@ -11,6 +11,11 @@ if (Test-Path $ConfigFile) {
         }
     }
 }
+[Environment]::SetEnvironmentVariable(
+    "RAY_ENABLE_WINDOWS_OR_OSX_CLUSTER",
+    (if ($env:RAY_ENABLE_WINDOWS_OR_OSX_CLUSTER) { $env:RAY_ENABLE_WINDOWS_OR_OSX_CLUSTER } else { "0" }),
+    "Process"
+)
 $VenvDir = Join-Path $ProjectDir ".venv"
 $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
 

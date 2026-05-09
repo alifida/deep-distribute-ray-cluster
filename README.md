@@ -129,6 +129,7 @@ curl "http://127.0.0.1:8080/experiments/<job_id>"
 Shared config file:
 - Edit `scripts/cluster_config.env` once (HEAD_IP, ports, GPU defaults).
 - Linux and Windows scripts auto-read this file.
+- For mixed Linux head + Windows worker clusters, keep `RAY_ENABLE_WINDOWS_OR_OSX_CLUSTER=1`.
 
 You need the project folder on every machine that will run Ray (head + workers), because workers must import the training code and Python dependencies.
 

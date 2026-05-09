@@ -26,6 +26,11 @@ if (Test-Path $ConfigFile) {
         }
     }
 }
+[Environment]::SetEnvironmentVariable(
+    "RAY_ENABLE_WINDOWS_OR_OSX_CLUSTER",
+    (if ($env:RAY_ENABLE_WINDOWS_OR_OSX_CLUSTER) { $env:RAY_ENABLE_WINDOWS_OR_OSX_CLUSTER } else { "0" }),
+    "Process"
+)
 $VenvDir = Join-Path $ProjectDir ".venv"
 $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
 
@@ -90,5 +95,8 @@ Write-Host ("[worker] connecting to {0}" -f $HeadAddress)
   --min-worker-port="$MinWorkerPort" `
   --max-worker-port="$MaxWorkerPort" `
   --num-gpus="$NumGpus"
+if ($LASTEXITCODE -ne 0) {
+    throw "[worker] ray start failed with exit code $LASTEXITCODE. Check network/firewall and mixed-OS cluster flag."
+}
 
 Write-Host "[worker] started and joined cluster"
