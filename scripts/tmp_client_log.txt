@@ -1,0 +1,18 @@
+Microsoft Windows [Version 10.0.19042.685]
+(c) 2020 Microsoft Corporation. All rights reserved.
+
+E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts>start_worker.bat
+At E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts\start_worker.ps1:63 char:36
++ Write-Host "[worker] connecting to $HeadIp:$HeadPort"
++                                    ~~~~~~~~
+Variable reference is not valid. ':' was not followed by a valid variable name character. Consider using ${} to
+delimit the name.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : InvalidVariableReferenceWithDrive
+
+
+[start_worker.bat] FAILED with exit code 1.
+Check HEAD_IP in scripts\cluster_config.env or pass HEAD_IP explicitly.
+Press any key to close this window...
+
+
