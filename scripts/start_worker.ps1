@@ -31,6 +31,13 @@ $mixedOsCluster = if ($env:RAY_ENABLE_WINDOWS_OR_OSX_CLUSTER) { $env:RAY_ENABLE_
 $VenvDir = Join-Path $ProjectDir ".venv"
 $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
 
+# Ensure Ray worker processes can import project modules (ray_ps_async).
+if ($env:PYTHONPATH) {
+    $env:PYTHONPATH = "$ProjectDir;$($env:PYTHONPATH)"
+} else {
+    $env:PYTHONPATH = $ProjectDir
+}
+
 if (-not (Test-Path $VenvPython)) {
     Write-Host "[worker] .venv missing, running setup_node.ps1..."
     & (Join-Path $PSScriptRoot "setup_node.ps1")

@@ -173,6 +173,8 @@ Stop worker runtime:
 bash scripts/stop_worker.sh
 ```
 
+Note: worker start scripts automatically set `PYTHONPATH` to project root so worker nodes can import `ray_ps_async`.
+
 ### 4) In UI
 
 - Open `http://<HEAD_LAN_IP>:8080/`

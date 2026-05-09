@@ -1,18 +1,21 @@
-
-
-E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts>stop_worker.bat
-[stop-worker] stopping Ray runtime
+start_worker.bat
+[worker] stopping old Ray runtime
 Did not find any active Ray processes.
-[stop-worker] done
-
-E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts>start_worker.bat
-E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts\start_worker.ps1 : The term 'if' is not recognized as the
-name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was
-included, verify that the path is correct and try again.
-    + CategoryInfo          : ObjectNotFound: (if:String) [start_worker.ps1], CommandNotFoundException
-    + FullyQualifiedErrorId : CommandNotFoundException,start_worker.ps1
+[worker] connecting to 192.168.18.99:6379
+python.exe : Traceback (most recent call last):
+At E:\workspace\windows\phd\deep-distribute-ray-cluster\scripts\start_worker.ps1:86 char:14
++ $rayOutput = & $VenvPython -m ray.scripts.scripts start `
++              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
 
 
 [start_worker.bat] FAILED with exit code 1.
 Check HEAD_IP in scripts\cluster_config.env or pass HEAD_IP explicitly.
 Press any key to close this window...
+
+
+
+
+
+

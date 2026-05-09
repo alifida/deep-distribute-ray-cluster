@@ -28,6 +28,9 @@ if ! "${VENV_DIR}/bin/python" -c "import ray" >/dev/null 2>&1; then
 fi
 RAY_CMD=("${VENV_DIR}/bin/python" -m ray.scripts.scripts)
 
+# Ensure Ray worker processes can import project modules (ray_ps_async).
+export PYTHONPATH="${PROJECT_DIR}:${PYTHONPATH:-}"
+
 NUM_GPUS="${NUM_GPUS:-1}"
 NODE_MANAGER_PORT="${WORKER_NODE_MANAGER_PORT:-${NODE_MANAGER_PORT:-10011}}"
 OBJECT_MANAGER_PORT="${WORKER_OBJECT_MANAGER_PORT:-${OBJECT_MANAGER_PORT:-10012}}"
