@@ -1273,8 +1273,8 @@ def ui() -> str:
         tr.innerHTML = `
           <td>${n.node_manager_address || "-"}</td>
           <td>${n.alive ? "yes" : "no"}</td>
-          <td>${n.cpus ?? 0}</td>
-          <td>${n.gpus ?? 0}</td>
+          <td>${(n.cpus !== undefined && n.cpus !== null) ? n.cpus : 0}</td>
+          <td>${(n.gpus !== undefined && n.gpus !== null) ? n.gpus : 0}</td>
           <td>${(n.node_id || "").slice(0, 12)}</td>
         `;
         body.appendChild(tr);
@@ -1322,7 +1322,7 @@ def ui() -> str:
           }
           lines.push("");
         });
-        out.textContent = lines.join("\n") || "No worker logs yet.";
+        out.textContent = lines.join("\\n") || "No worker logs yet.";
       } catch (e) {
         msg.textContent = "Failed to load logs: " + e.message;
       }
